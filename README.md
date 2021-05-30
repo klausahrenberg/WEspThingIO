@@ -15,6 +15,8 @@ Replaces original Tuya firmware for several switching devices and turn it direct
 * Reading and setting of all parameters via MQTT
 * Reading and setting of main parameters via Webthing
 * Switches and relais can be controlled separatly. For example, a Sonoff Mini can used use for a second switch to control a relay of another Sonoff Mini. Logic must be done via MQTT, but an unused relay can be taken out of function.
+## Planned features
+* Extended support for LEDs (brightness via PWM, RGB support)
 ## Installation
 To install the firmware, follow instructions here:  
 https://github.com/klausahrenberg/WThermostatBeca/blob/master/Flashing.md
