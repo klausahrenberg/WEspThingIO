@@ -445,6 +445,7 @@ protected:
 		char* pNumber = new char[2];
 		sprintf(pNumber, "%d", gpio);
 		if (isGpioFree(gpio)) page->printf(HTTP_COMBOBOX_ITEM, pNumber, (aGpio == gpio ? HTTP_SELECTED : ""), title);
+		return true;
 	}
 
   void addGpioChooser(Print* page, bool isOutput) {
@@ -454,8 +455,9 @@ protected:
 		addGpioChooserItem(page, 0, "0");
 		if (isOutput) {
 			addGpioChooserItem(page, 1, "1 (TX)");
-			addGpioChooserItem(page, 2, "2");
-		} else {
+		}
+		addGpioChooserItem(page, 2, "2");
+		if (!isOutput) {
 			addGpioChooserItem(page, 3, "3 (RX)");
 		}
 		addGpioChooserItem(page, 4, "4");
