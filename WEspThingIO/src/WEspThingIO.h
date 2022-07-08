@@ -53,7 +53,7 @@ const static char HTTP_BUTTON_VALUE[]    PROGMEM = R"=====(
 class WEspThingIO: public WDevice {
 public:
 	WEspThingIO(WNetwork* network)
-	    	: WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH) {
+	    	: WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH, DEVICE_TYPE_LIGHT) {
 		this->editingItem = nullptr;
 		this->editingName = nullptr;
 		this->editingTitle = nullptr;
