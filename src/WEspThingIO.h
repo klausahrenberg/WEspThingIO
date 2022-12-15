@@ -727,14 +727,14 @@ private:
 			}
 			case 1: {
 				//Milos 1-fach
-				this->addLed(   4, false, false, false, "led",   "", true);
+				this->addLed(   4, false, false, true, "led",   "", true);
 				this->addRelay(13,  true,  true, false,  "on", "on");
 				this->addSwitch(12, 13, "");
 				break;
 			}
 			case 2: {
 				//Milos 2-fach
-				this->addLed(   4, false, false, false, "led",   "", true);
+				this->addLed(   4, false, false, true, "led",   "", true);
 				this->addRelay(13,  true,  true, false,  "on", "on");
 				this->addRelay(15,  true,  true, false,  "on_2", "on_2");
 				this->addSwitch(12, 13, "");
