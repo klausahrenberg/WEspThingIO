@@ -5,8 +5,6 @@ const static char HTTP_COMBO_BOX_FUNCTION_SCRIPT[] PROGMEM = R"=====(
 	<script>		
 		function getComboA(cb) {
 			var value = cb.value;  
-            console.log(value);
-
 			var ma = document.getElementById('ma');			
 			ma.style.display = (cb.value=='1' || cb.value=='2' ? 'block' : 'none');
 			var wa = document.getElementById('wa');

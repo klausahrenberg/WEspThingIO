@@ -3,9 +3,9 @@
 #include "WEspThingIO.h"
 
 #define APPLICATION "WEspThingIO"
-#define VERSION "1.26"
-#define FLAG_SETTINGS 0x09
-#define DEBUG true
+#define VERSION "1.32"
+#define FLAG_SETTINGS 0x12
+#define DEBUG false
 
 WNetwork* network;
 WDevice* device;
