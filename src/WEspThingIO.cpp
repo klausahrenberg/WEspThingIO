@@ -3,7 +3,7 @@
 #include "WEspThingIO.h"
 
 #define APPLICATION "WEspThingIO"
-#define VERSION "1.32"
+#define VERSION "1.34"
 #define FLAG_SETTINGS 0x12
 #define DEBUG false
 
@@ -18,10 +18,10 @@ void setup() {
 	network = new WNetwork(DEBUG, APPLICATION, VERSION, NO_LED, FLAG_SETTINGS);
 	//Device
 	device = new WEspThingIO(network);
-	network->addDevice(device);
+	network->addDevice(device);	
 }
 
 void loop() {
-  network->loop(millis());
+  network->loop(millis());	
 	delay(50);
 }
