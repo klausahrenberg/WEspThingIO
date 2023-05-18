@@ -686,7 +686,7 @@ class WEspThingIO : public WDevice {
     // WProperty* gConfig = network()->settings()->setByteArray(pNumber.c_str(),
     // DEFAULT_PROP_ARRAY);
     WProperty* gConfig = new WProperty(pNumber.c_str(), pNumber.c_str(), BYTE_ARRAY, "");
-    gConfig->setByteArray(DEFAULT_PROP_ARRAY);
+    gConfig->setByteArray(4, DEFAULT_PROP_ARRAY);
     network()->settings()->insert(gConfig, _numberOfSettings);    
     _numberOfSettings++;
     if (gType == GPIO_TYPE_UNKNOWN) {
@@ -779,7 +779,10 @@ class WEspThingIO : public WDevice {
       return true;
     } else {
       for (byte i = 0; i < _numberOfGPIOs->getByte(); i++) {
-        if ((_getGpioConfig(i)->getByteArrayValue(BYTE_GPIO) == gpio) || (_getGpioConfig(i)->getByteArrayValue(BYTE_SCL) == gpio)) {
+        WProperty* gConfig = _getGpioConfig(i);
+        byte gType = gConfig->getByteArrayValue(BYTE_TYPE);
+        if (((_isGpioUsingGPIO(gType)) && (gConfig->getByteArrayValue(BYTE_GPIO) == gpio)) || 
+             ((_isGpioUsingSCL(gType)) && (gConfig->getByteArrayValue(BYTE_SCL) == gpio))) {
           return false;
         }
       }
@@ -801,6 +804,14 @@ class WEspThingIO : public WDevice {
     return ((gType == GPIO_TYPE_MODE) || (gType == GPIO_TYPE_MERGE));
   }
 
+  bool _isGpioUsingGPIO(byte gType) {
+    return (!_isGpioGrouped(gType));
+  }
+
+  bool _isGpioUsingSCL(byte gType) {
+    return (gType == GPIO_TYPE_HTU21D);
+  }  
+
   bool _addGpioChooserItem(Print* page, byte gpio, const char* title, byte bytePos, byte defaultGpio) {
     int aGpio = (_editingItem != nullptr ? _editingItem->getByteArrayValue(bytePos) : defaultGpio);
     char* pNumber = new char[2];
@@ -819,6 +830,8 @@ class WEspThingIO : public WDevice {
     if (!isOutput) _addGpioChooserItem(page, 3, "3 (RX)", bytePos, defaultGpio);
     _addGpioChooserItem(page, 4, "4", bytePos, defaultGpio);
     _addGpioChooserItem(page, 5, "5", bytePos, defaultGpio);
+    _addGpioChooserItem(page, 9, "9", bytePos, defaultGpio);
+    _addGpioChooserItem(page, 10, "10", bytePos, defaultGpio);
     _addGpioChooserItem(page, 12, "12", bytePos, defaultGpio);
     _addGpioChooserItem(page, 13, "13", bytePos, defaultGpio);
     _addGpioChooserItem(page, 14, "14", bytePos, defaultGpio);
@@ -1107,7 +1120,7 @@ class WEspThingIO : public WDevice {
         modeProp->setString(output->modeTitle(output->mode()));
       }
       //Change notification
-      modeProp->setOnChange([this, output] (WProperty* property) {
+      modeProp->addListener([this, output] (WProperty* property) {
         network()->settings()->save();
         output->setModeByTitle(property->c_str());
       });
@@ -1182,13 +1195,13 @@ class WEspThingIO : public WDevice {
         WProperty* onOffProp = WProps::createOnOffProperty(gName, gTitle);
         onOffProp->setVisibilityMqtt(mq);
         onOffProp->setVisibilityWebthing(wt);
-        onOffProp->setOnChange([this](WProperty* property) { _notifyGroupedChange(property, FIRST_NAME); });
+        onOffProp->addListener([this](WProperty* property) { _notifyGroupedChange(property, FIRST_NAME); });
         this->addProperty(onOffProp);
         WProperty* modeProp = WProps::createStringProperty(mName, mTitle);
         network()->settings()->add(modeProp);        
         modeProp->setVisibilityMqtt(mq);
         modeProp->setVisibilityWebthing(wt);
-        modeProp->setOnChange([this](WProperty* property) {
+        modeProp->addListener([this](WProperty* property) {
           network()->settings()->save();
           _notifyGroupedChange(property, SECOND_NAME);
         });
@@ -1209,7 +1222,7 @@ class WEspThingIO : public WDevice {
         WProperty* onOffProp = WProps::createOnOffProperty(gName, gTitle);
         onOffProp->setVisibilityMqtt(mq);
         onOffProp->setVisibilityWebthing(wt);
-        onOffProp->setOnChange([this](WProperty* property) { _notifyMergedChange(property); });
+        onOffProp->addListener([this](WProperty* property) { _notifyMergedChange(property); });
         this->addProperty(onOffProp);              
         if (gr) {
           char* pgName = _getSubString(gConfig, SECOND_NAME);          
@@ -1311,8 +1324,8 @@ class WEspThingIO : public WDevice {
         }
         case GPIO_TYPE_HTU21D: {
           network()->debug(F("add HTU21 temperature sensor '%s'"), gName);
-          //Sensor          
-          WHtu21D* htu = new WHtu21D(gConfig->getByteArrayValue(BYTE_GPIO), gConfig->getByteArrayValue(BYTE_SCL));                    
+          //Sensor     
+          WHtu21D* htu = new WHtu21D(gConfig->getByteArrayValue(BYTE_GPIO), gConfig->getByteArrayValue(BYTE_SCL), NO_PIN);                    
           this->addInput(htu);
           //Properties
           bool mq = gConfig->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
