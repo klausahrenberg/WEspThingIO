@@ -3,7 +3,7 @@
 #include "WEspThingIO.h"
 
 #define APPLICATION "WEspThingIO"
-#define VERSION "1.36"
+#define VERSION "1.37"
 #define FLAG_SETTINGS 0x12
 #define DEBUG false
 

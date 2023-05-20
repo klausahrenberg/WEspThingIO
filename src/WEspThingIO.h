@@ -393,6 +393,9 @@ class WEspThingIO : public WDevice {
     bool newItem = _updateEditingItem(request, page);
     byte aProps = (newItem ? 0b00000111 : _editingItem->getByteArrayValue(BYTE_CONFIG));
     _printVisibility(page, aProps, GPIO_TYPE_MERGE, "merge", false);
+    page->printf(HTTP_CHECKBOX_OPTION, "iv", "iv",
+                 (bitRead(aProps, BIT_CONFIG_LED_INVERTED) ? HTTP_CHECKED : ""),
+                 "", "Inverted");
     page->printf(HTTP_BUTTON_SUBMIT, CAPTION_OK);
     page->printf(HTTP_BUTTON, DEVICE_ID, VALUE_GET, CAPTION_CANCEL);
   }
@@ -486,6 +489,7 @@ class WEspThingIO : public WDevice {
     bool mq = ((!gr) && ((voo.equals("1")) || (voo.equals("2"))));
     bool wt = ((!gr) && (voo.equals("2")));
     _addMergedProperty(gr, mq, wt, 
+                       (request->arg("iv") == HTTP_TRUE),
                        request->arg("pn"),
                        (!gr ? request->arg("wtt") : request->arg("mot")),
                        (gr ? voo : ""));
@@ -1169,9 +1173,10 @@ class WEspThingIO : public WDevice {
     WProperty* mergedGpio =  _getGroupedGpioBySubString(property->id(), FIRST_NAME);
     if (mergedGpio != nullptr) {
       char* gName = _getSubString(mergedGpio, FIRST_NAME);
+      bool iv = mergedGpio->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED);
       if (mergedGpio->hasOutputs()) {        
-        mergedGpio->outputs()->forEach([this, property](WOutput* output) {          
-          output->setOn(property->getBoolean());
+        mergedGpio->outputs()->forEach([this, property, iv](WOutput* output) {          
+          output->setOn(iv ? !property->getBoolean() : property->getBoolean());
         });
       }
     } else {
@@ -1219,9 +1224,11 @@ class WEspThingIO : public WDevice {
         bool mq = gConfig->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
         bool wt = gConfig->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
         bool gr = gConfig->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_GROUPED);
+        bool iv = gConfig->getByteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED);
         WProperty* onOffProp = WProps::createOnOffProperty(gName, gTitle);
         onOffProp->setVisibilityMqtt(mq);
         onOffProp->setVisibilityWebthing(wt);
+        onOffProp->setBoolean(iv);
         onOffProp->addListener([this](WProperty* property) { _notifyMergedChange(property); });
         this->addProperty(onOffProp);              
         if (gr) {
@@ -1437,8 +1444,8 @@ class WEspThingIO : public WDevice {
     _clearEditingItem();
   }
 
-  void _addMergedProperty(bool gr, bool mqtt, bool webthing, String propertyName, String propertyTitle, String groupedName) {
-    _addGpioConfigItem(GPIO_TYPE_MERGE, BYTE_NO_GPIO, gr, mqtt, webthing, false);
+  void _addMergedProperty(bool gr, bool mqtt, bool webthing, bool inverted, String propertyName, String propertyTitle, String groupedName) {
+    _addGpioConfigItem(GPIO_TYPE_MERGE, BYTE_NO_GPIO, gr, mqtt, webthing, inverted);
     _setSubString(_editingItem, FIRST_NAME, propertyName);
     _setSubString(_editingItem, FIRST_TITLE, propertyTitle);    
     _setSubString(_editingItem, SECOND_NAME, groupedName);    
@@ -1498,8 +1505,8 @@ class WEspThingIO : public WDevice {
       case 2: {
         // Aubess Touch Switch 2 Gang
         _addLed(0, false, false, false, false, "led", "", true);
-        _addMergedProperty(false, true, true, "on", "Channel 1", "");
-        _addMergedProperty(false, true, true, "on_2", "Channel 2", "");
+        _addMergedProperty(false, true, true, false, "on", "Channel 1", "");
+        _addMergedProperty(false, true, true, false, "on_2", "Channel 2", "");
         _addRelay(13, true, false, false, false, "on", "");
         _addLed(14, true, false, false, false, "on", "", false);
         _addRelay(4, true, false, false, false, "on_2", "");
