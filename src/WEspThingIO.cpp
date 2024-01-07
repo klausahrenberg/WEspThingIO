@@ -3,8 +3,8 @@
 #include "WEspThingIO.h"
 
 #define APPLICATION "WEspThingIO"
-#define VERSION "1.38"
-#define FLAG_SETTINGS 0x12
+#define VERSION "1.40"
+#define FLAG_SETTINGS 0x46
 #define DEBUG false
 
 WNetwork* network;

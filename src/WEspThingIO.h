@@ -9,6 +9,7 @@
 #include "WRelay.h"
 #include "WSwitch.h"
 #include "hw/WHtu21D.h"
+#include "hw/WSht30.h"
 #include "hw/W2812.h"
 
 #define DEVICE_ID "switch"
@@ -21,7 +22,7 @@
 #define GPIO_TYPE_MODE 4
 #define GPIO_TYPE_RGB_LED 5
 #define GPIO_TYPE_MERGE 6
-#define GPIO_TYPE_HTU21D 7
+#define GPIO_TYPE_TEMP_SENSOR 7
 #define GPIO_TYPE_UNKNOWN 0xFF
 
 #define BYTE_TYPE 0
@@ -43,6 +44,7 @@
 #define BIT_CONFIG_LED_INVERTED 3
 #define BIT_CONFIG_RGB_GROUPED_PROGRAMS_IN_MODE  BIT_CONFIG_LED_INVERTED
 #define BIT_CONFIG_NO_OF_LEDS                    BIT_CONFIG_LED_INVERTED
+#define BIT_CONFIG_TEMP_SENSOR_TYPE              BIT_CONFIG_LED_INVERTED
 #define BIT_CONFIG_LED_LINKSTATE 4
 #define BIT_CONFIG_SWITCH_AP_LONGPRESS BIT_CONFIG_LED_LINKSTATE
 #define BIT_CONFIG_SWITCH_DIRECTLY 5
@@ -55,7 +57,7 @@
 #define HTTP_ADD_LED "addled"
 #define HTTP_ADD_RELAY "addrelay"
 #define HTTP_ADD_RGB_LED "addrgbled"
-#define HTTP_ADD_HTU21D "addht21d"
+#define HTTP_ADD_TEMP_SENSOR "addtemp"
 #define HTTP_ADD_BUTTON "addbutton"
 #define HTTP_ADD_SWITCH "addswitch"
 #define HTTP_ADD_MODE "addmode"
@@ -184,11 +186,11 @@ class WEspThingIO : public WDevice {
                   std::placeholders::_1, std::placeholders::_2));
     buttonPage->setTargetAfterSubmitting(configPage);
     network->addCustomPage(buttonPage);
-    // Add HTU21
-    WPage* htuPage = new WPage(HTTP_ADD_HTU21D, "Add/edit HTU21D");
+    // Add Temp sensor
+    WPage* htuPage = new WPage(HTTP_ADD_TEMP_SENSOR, "Add/edit temp sensor");
     htuPage->setShowInMainMenu(false);
-    htuPage->setPrintPage(std::bind(&WEspThingIO::_handleHttpAddGpioHtu21, this, std::placeholders::_1, std::placeholders::_2));
-    htuPage->setSubmittedPage(std::bind(&WEspThingIO::_handleHttpSubmitAddGpioHtu21, this, std::placeholders::_1, std::placeholders::_2));
+    htuPage->setPrintPage(std::bind(&WEspThingIO::_handleHttpAddGpioTempSensor, this, std::placeholders::_1, std::placeholders::_2));
+    htuPage->setSubmittedPage(std::bind(&WEspThingIO::_handleHttpSubmitAddGpioTempSensor, this, std::placeholders::_1, std::placeholders::_2));
     htuPage->setTargetAfterSubmitting(configPage);
     network->addCustomPage(htuPage);
     // Grouped - Mode
@@ -292,9 +294,16 @@ class WEspThingIO : public WDevice {
     page->printf(HTTP_BUTTON, DEVICE_ID, VALUE_GET, CAPTION_CANCEL);
   }
 
-  void _handleHttpAddGpioHtu21(AsyncWebServerRequest* request, Print* page) {
-    page->printf(HTTP_CONFIG_PAGE_BEGIN, HTTP_ADD_HTU21D);
+  void _handleHttpAddGpioTempSensor(AsyncWebServerRequest* request, Print* page) {
+    page->printf(HTTP_CONFIG_PAGE_BEGIN, HTTP_ADD_TEMP_SENSOR);
     bool newItem = _updateEditingItem(request, page);
+    byte aProps = (newItem ? 0 : _editingItem->byteArrayValue(BYTE_CONFIG));
+    bool isHtu21 = (newItem ? false : bitRead(aProps, BIT_CONFIG_TEMP_SENSOR_TYPE));
+    page->printf(HTTP_COMBOBOX_BEGIN, "Model:", "st");
+    page->printf(HTTP_COMBOBOX_ITEM, "0", (!isHtu21 ? HTTP_SELECTED : ""), F("SHT30"));
+    page->printf(HTTP_COMBOBOX_ITEM, "1", (isHtu21 ? HTTP_SELECTED : ""), F("HTU21"));
+    page->print(FPSTR(HTTP_COMBOBOX_END));
+
     addGpioChooser(page, false, PSTR("SDA:"), "sda", BYTE_GPIO, 4);
     addGpioChooser(page, false, PSTR("SCL:"), "scl", BYTE_SCL, 5);
     _handleHttpAddDualProperty(request, page, true, PSTR("Temperature"), PSTR("Humidity"));    
@@ -470,9 +479,10 @@ class WEspThingIO : public WDevice {
                (request->arg("gim") == HTTP_TRUE));
   }
 
-  void _handleHttpSubmitAddGpioHtu21(AsyncWebServerRequest* request, Print* page) {    
-    _addHtu21D(request->arg("sda").toInt(), request->arg("scl").toInt(), 
+  void _handleHttpSubmitAddGpioTempSensor(AsyncWebServerRequest* request, Print* page) {    
+    _addTempSensor(request->arg("sda").toInt(), request->arg("scl").toInt(), 
                true, (request->arg("wt") == HTTP_TRUE),
+               request->arg("st").toInt(),
                request->arg("fn"), request->arg("ft"),
                request->arg("sn"), request->arg("st"));
   }
@@ -529,78 +539,78 @@ class WEspThingIO : public WDevice {
   virtual void _printConfigPage(AsyncWebServerRequest* request, Print* page) {
     if (_numberOfGPIOs->asByte() < MAX_GPIOS) {
       page->print(F("<table  class='tt'>"));
-      tr(page);
+      WHtml::tr(page);
       page->print(F("<td colspan='4'>"));
       page->printf(HTTP_BUTTON, HTTP_USE_TEMPLATE, VALUE_GET, "Use a template...");
-      tdEnd(page);
-      trEnd(page);
-      tr(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::trEnd(page);
+      WHtml::tr(page);
+      WHtml::td(page);
       page->print(F("Add output:"));
-      tdEnd(page);
+      WHtml::tdEnd(page);
       // LED
-      td(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_LED, VALUE_GET, "LED");
-      tdEnd(page);
+      WHtml::tdEnd(page);
       // Relay
-      td(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_RELAY, VALUE_GET, "Relay");
-      tdEnd(page);
+      WHtml::tdEnd(page);
       // Relay
-      td(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_RGB_LED, VALUE_GET, "RGB LED");
-      tdEnd(page);
+      WHtml::tdEnd(page);
       // Switch
-      trEnd(page);
-      tr(page);
-      td(page);
+      WHtml::trEnd(page);
+      WHtml::tr(page);
+      WHtml::td(page);
       page->print(F("Add input:"));
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_SWITCH, VALUE_GET, "Switch");
-      tdEnd(page);
+      WHtml::tdEnd(page);
       // Button
-      td(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_BUTTON, VALUE_GET, "Button");
-      tdEnd(page);
-      // HTU21D
-      td(page);
-      page->printf(HTTP_BUTTON, HTTP_ADD_HTU21D, VALUE_GET, "HTU21D");
-      tdEnd(page);
-      trEnd(page);
-      tr(page);
-      td(page);
+      WHtml::tdEnd(page);
+      // Temp sensor
+      WHtml::td(page);
+      page->printf(HTTP_BUTTON, HTTP_ADD_TEMP_SENSOR, VALUE_GET, "Temp sensor");
+      WHtml::tdEnd(page);
+      WHtml::trEnd(page);
+      WHtml::tr(page);
+      WHtml::td(page);
       page->print(F("Add grouped:"));
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_MODE, VALUE_GET, "On/Mode");
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON, HTTP_ADD_MERGE, VALUE_GET, "Merge");
-      tdEnd(page);
-      trEnd(page);
+      WHtml::tdEnd(page);
+      WHtml::trEnd(page);
       page->print(F("</table>"));
     }
     // Table with already stored MAX_GPIOS
     page->printf(HTTP_DIV_ID_BEGIN, "gd");
-    page->print(F("<table  class='st'>"));
-    tr(page);
-    th(page); /*No*/
-    thEnd(page);
-    th(page);
+    WHtml::table(page, "st");
+    WHtml::tr(page);
+    WHtml::th(page); /*No*/
+    WHtml::thEnd(page);
+    WHtml::th(page);
     page->print("Type");
-    thEnd(page);
-    th(page);
+    WHtml::thEnd(page);
+    WHtml::th(page);
     page->print("GPIO");
-    thEnd(page);
-    th(page);
+    WHtml::thEnd(page);
+    WHtml::th(page);
     page->print("Name");
-    thEnd(page);
-    th(page); /*Edit*/
-    thEnd(page);
-    th(page); /*Remove*/
-    thEnd(page);
-    trEnd(page);
+    WHtml::thEnd(page);
+    WHtml::th(page); /*Edit*/
+    WHtml::thEnd(page);
+    WHtml::th(page); /*Remove*/
+    WHtml::thEnd(page);
+    WHtml::trEnd(page);
     char* pName = new char[8];
 
     char* pNumber = new char[2];
@@ -612,21 +622,21 @@ class WEspThingIO : public WDevice {
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       sprintf(pName, "gpio_%d", i);
       sprintf(pNumber, "%d", i);
-      tr(page);
-      td(page);
+      WHtml::tr(page);
+      WHtml::td(page);
       page->print(pNumber);
-      tdEnd(page);
-      td(page);      
+      WHtml::tdEnd(page);
+      WHtml::td(page);      
       page->print(_getGpioDisplayName(gType));
       char* targetName = _getGpioTarget(gType);
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       if (!_isGpioGrouped(gType)) {
         sprintf(gNumber, "%d", gConfig->byteArrayValue(BYTE_GPIO));
         page->print(gNumber);
       }
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       if (gr) {
         page->print("> ");
       }
@@ -634,17 +644,17 @@ class WEspThingIO : public WDevice {
       if (gName != nullptr) {
         page->print(gName);
       }
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON_VALUE, targetName, "", pNumber, CAPTION_EDIT);
-      tdEnd(page);
-      td(page);
+      WHtml::tdEnd(page);
+      WHtml::td(page);
       page->printf(HTTP_BUTTON_VALUE, HTTP_REMOVE_GPIO, "cbtn", pNumber,
                    CAPTION_REMOVE);
-      tdEnd(page);
-      trEnd(page);
+      WHtml::tdEnd(page);
+      WHtml::trEnd(page);
     }
-    page->print(F("</table>"));
+    WHtml::tableEnd(page);
     page->printf(HTTP_DIV_END);
 
     page->printf(HTTP_CONFIG_PAGE_BEGIN, id());
@@ -801,7 +811,7 @@ class WEspThingIO : public WDevice {
 
   bool _isGpioAnInput(byte gType) {
     return ((gType == GPIO_TYPE_BUTTON) || (gType == GPIO_TYPE_SWITCH) ||
-            (gType == GPIO_TYPE_HTU21D));
+            (gType == GPIO_TYPE_TEMP_SENSOR));
   }
 
   bool _isGpioGrouped(byte gType) {
@@ -813,14 +823,14 @@ class WEspThingIO : public WDevice {
   }
 
   bool _isGpioUsingSCL(byte gType) {
-    return (gType == GPIO_TYPE_HTU21D);
+    return (gType == GPIO_TYPE_TEMP_SENSOR);
   }  
 
   bool _addGpioChooserItem(Print* page, byte gpio, const char* title, byte bytePos, byte defaultGpio) {
     int aGpio = (_editingItem != nullptr ? _editingItem->byteArrayValue(bytePos) : defaultGpio);
     char* pNumber = new char[2];
     sprintf(pNumber, "%d", gpio);
-    if (_isGpioFree(gpio))
+    if (((_editingItem != nullptr) && (aGpio == gpio)) || (_isGpioFree(gpio)))
       page->printf(HTTP_COMBOBOX_ITEM, pNumber, (aGpio == gpio ? HTTP_SELECTED : ""), title);
     return true;
   }
@@ -834,8 +844,9 @@ class WEspThingIO : public WDevice {
     if (!isOutput) _addGpioChooserItem(page, 3, "3 (RX)", bytePos, defaultGpio);
     _addGpioChooserItem(page, 4, "4", bytePos, defaultGpio);
     _addGpioChooserItem(page, 5, "5", bytePos, defaultGpio);
-    _addGpioChooserItem(page, 9, "9", bytePos, defaultGpio);
-    _addGpioChooserItem(page, 10, "10", bytePos, defaultGpio);
+    /// 16, 3, 1, 10, 9 This may be problematic if you have relays or other peripherals connected to those GPIOs. The following GPIOs output a HIGH signal on boot
+    // _addGpioChooserItem(page, 9, "9", bytePos, defaultGpio);
+    // _addGpioChooserItem(page, 10, "10", bytePos, defaultGpio);
     _addGpioChooserItem(page, 12, "12", bytePos, defaultGpio);
     _addGpioChooserItem(page, 13, "13", bytePos, defaultGpio);
     _addGpioChooserItem(page, 14, "14", bytePos, defaultGpio);
@@ -893,8 +904,8 @@ class WEspThingIO : public WDevice {
         return "Merge";
       case GPIO_TYPE_RGB_LED:
         return "RGB";
-      case GPIO_TYPE_HTU21D:
-        return "HTU21D";  
+      case GPIO_TYPE_TEMP_SENSOR:
+        return "TempSens";  
       default:
         return "n.a.";
     }
@@ -916,8 +927,8 @@ class WEspThingIO : public WDevice {
         return HTTP_ADD_MERGE;
       case GPIO_TYPE_RGB_LED:
         return HTTP_ADD_RGB_LED;
-      case GPIO_TYPE_HTU21D:
-        return HTTP_ADD_HTU21D;  
+      case GPIO_TYPE_TEMP_SENSOR:
+        return HTTP_ADD_TEMP_SENSOR;  
       default:
         return HTTP_ADD_LED;
     }
@@ -1329,10 +1340,16 @@ class WEspThingIO : public WDevice {
           }
           break;
         }
-        case GPIO_TYPE_HTU21D: {
-          network()->debug(F("add HTU21 temperature sensor '%s'"), gName);
-          //Sensor     
-          WHtu21D* htu = new WHtu21D(gConfig->byteArrayValue(BYTE_GPIO), gConfig->byteArrayValue(BYTE_SCL));                    
+        case GPIO_TYPE_TEMP_SENSOR: {
+          network()->debug(F("add temperature sensor '%s'"), gName);
+          //Sensor
+          WI2CTemperature* htu = nullptr;           
+          bool isHtu21 = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_TEMP_SENSOR_TYPE);
+          if (isHtu21) {               
+            htu = new WHtu21D(gConfig->byteArrayValue(BYTE_GPIO), gConfig->byteArrayValue(BYTE_SCL));                    
+          } else {
+            htu = new WSht30(gConfig->byteArrayValue(BYTE_GPIO), gConfig->byteArrayValue(BYTE_SCL));                    
+          }  
           this->addInput(htu);
           //Properties
           bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
@@ -1425,13 +1442,14 @@ class WEspThingIO : public WDevice {
     _clearEditingItem();
   }
 
-  void _addHtu21D(byte sda, byte scl, bool mqtt, bool webthing, String tName, String tTitle, String hName, String hTitle) {
-    _addGpioConfigItem(GPIO_TYPE_HTU21D, sda, false, mqtt, webthing, false);
+  void _addTempSensor(byte sda, byte scl, bool mqtt, bool webthing, bool isHtu21, String tName, String tTitle, String hName, String hTitle) {
+    _addGpioConfigItem(GPIO_TYPE_TEMP_SENSOR, sda, false, mqtt, webthing, false);    
     _editingItem->byteArrayValue(BYTE_SCL, scl);
     _setSubString(_editingItem, FIRST_NAME, tName);
     _setSubString(_editingItem, FIRST_TITLE, tTitle);
     _setSubString(_editingItem, SECOND_NAME, hName);
     _setSubString(_editingItem, SECOND_TITLE, hTitle);
+    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_TEMP_SENSOR_TYPE, isHtu21);
     _clearEditingItem();
   }
 
@@ -1475,7 +1493,7 @@ class WEspThingIO : public WDevice {
       case GPIO_TYPE_LED: return 2;
       case GPIO_TYPE_RELAY: return 2;
       case GPIO_TYPE_RGB_LED: return 2;
-      case GPIO_TYPE_HTU21D: return 4;
+      case GPIO_TYPE_TEMP_SENSOR: return 4;
       case GPIO_TYPE_SWITCH: return 1;
       case GPIO_TYPE_BUTTON: return 1;
       default: return 0;
