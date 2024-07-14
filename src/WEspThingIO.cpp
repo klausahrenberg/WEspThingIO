@@ -2,23 +2,20 @@
 #include "WNetwork.h"
 #include "WEspThingIO.h"
 
-#define APPLICATION "WEspThingIO"
-#define VERSION "1.40"
-#define FLAG_SETTINGS 0x46
-#define DEBUG false
-
-WNetwork* network;
-WDevice* device;
+WNetwork *network;
 
 void setup() {
   if (DEBUG) {
 		Serial.begin(9600);
 	}
+	APPLICATION = "WEspThingIO";
+	VERSION = "1.41";
+	FLAG_SETTINGS = 0x46;
+	DEBUG = true;
 	//Network
-	network = new WNetwork(DEBUG, APPLICATION, VERSION, NO_LED, FLAG_SETTINGS);
+	network = new WNetwork(NO_LED);
 	//Device
-	device = new WEspThingIO(network);
-	network->addDevice(device);	
+	network->addDevice(new WEspThingIO(network));	
 }
 
 void loop() {

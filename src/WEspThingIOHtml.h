@@ -21,4 +21,8 @@ const static char HTTP_COMBOBOX_OPTION_BEGIN[]         PROGMEM = R"=====(
         	<select class='ip' name='%s' onchange='getComboA(this)'>
 )=====";
 
+const static char HTTP_PROPERTY_VISIBILITY[]         PROGMEM = R"=====(
+        propVisibility
+)=====";
+
 #endif
