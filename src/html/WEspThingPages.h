@@ -18,9 +18,9 @@ class WThingPage : public WPage {
     form->add((new WebSubmitButton(PSTR("Save configuration"))));
   }
 
-  virtual WFormResponse submitForm(WStringList* args) {
+  virtual WFormResponse* submitForm(WStringList* args) {
     LOG->debug("handle submitform");
-    return WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
+    return new WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
   }  
 };
 
