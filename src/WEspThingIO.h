@@ -6,50 +6,17 @@
 #include "WProps.h"
 #include "html/WHtmlPages.h"
 #include "html/WPage.h"
+#include "html/WEspThingPages.h"
 #include "hw/W2812.h"
 #include "hw/WHtu21D.h"
 #include "hw/WPwmDimmer.h"
 #include "hw/WRelay.h"
 #include "hw/WSht30.h"
 #include "hw/WSwitch.h"
+#include "WThingGpios.h"
 
 #define DEVICE_ID "switch"
-#define MAX_GPIOS 12
-#define MAX_PROP_BYTES 4
-#define GPIO_TYPE_LED 0
-#define GPIO_TYPE_RELAY 1
-#define GPIO_TYPE_BUTTON 2
-#define GPIO_TYPE_SWITCH 3
-#define GPIO_TYPE_MODE 4
-#define GPIO_TYPE_RGB_LED 5
-#define GPIO_TYPE_MERGE 6
-#define GPIO_TYPE_TEMP_SENSOR 7
-#define GPIO_TYPE_DIMMER 8
-#define GPIO_TYPE_UNKNOWN 0xFF
 
-#define BYTE_TYPE 0
-#define BYTE_GPIO 1
-#define BYTE_CONFIG 2
-#define BYTE_SCL 3
-#define BYTE_NO_OF_LEDS BYTE_SCL
-#define BYTE_NO_GPIO 0xFF
-#define NO_INDEX BYTE_NO_GPIO
-
-#define FIRST_NAME 0
-#define FIRST_TITLE 1
-#define SECOND_NAME 2
-#define SECOND_TITLE 3
-
-#define BIT_CONFIG_PROPERTY_GROUPED 0
-#define BIT_CONFIG_PROPERTY_MQTT 1
-#define BIT_CONFIG_PROPERTY_WEBTHING 2
-#define BIT_CONFIG_LED_INVERTED 3
-#define BIT_CONFIG_RGB_GROUPED_PROGRAMS_IN_MODE BIT_CONFIG_LED_INVERTED
-#define BIT_CONFIG_NO_OF_LEDS BIT_CONFIG_LED_INVERTED
-#define BIT_CONFIG_TEMP_SENSOR_TYPE BIT_CONFIG_LED_INVERTED
-#define BIT_CONFIG_LED_LINKSTATE 4
-#define BIT_CONFIG_SWITCH_AP_LONGPRESS BIT_CONFIG_LED_LINKSTATE
-#define BIT_CONFIG_SWITCH_DIRECTLY 5
 
 #define CAPTION_EDIT "Edit"
 #define CAPTION_REMOVE "Remove"
@@ -66,9 +33,7 @@
 #define HTTP_ADD_MODE "addmode"
 #define HTTP_ADD_MERGE "addmerge"
 #define HTTP_REMOVE_GPIO "removegpio"
-#define GPIO_DEFAULT_ID "^g_"
 
-const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 const static char HTTP_BUTTON_VALUE[] PROGMEM = R"=====(
 	<div>
   	<form action='/%s' method='POST'>
@@ -98,23 +63,13 @@ class WEspThingIO : public WDevice {
   WEspThingIO(WNetwork* network)
       : WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH,
                 DEVICE_TYPE_LIGHT) {
-    _editingItem = nullptr;
-    _editingIndex = NO_INDEX;
-    _numberOfGPIOs = SETTINGS->setByte("numberOfGPIOs", 0, MAX_GPIOS);
-    _numberOfGPIOs->visibility(NONE);
-    this->addProperty(_numberOfGPIOs,"numberOfGPIOs");
-    _numberOfSettings = SETTINGS->size();
-    byte nog = _numberOfGPIOs->asByte();
-    _numberOfGPIOs->asByte(0);
-    for (byte i = 0; i < nog; i++) {
-      _addGpioConfig(GPIO_TYPE_UNKNOWN);
-      _numberOfGPIOs->asByte(i + 1);
-    }
+    _gpios = new WThingGpios();
     // Configure Device
     _configureDevice();
     this->setVisibility(
         ALL);  // this->showAsWebthingDevice->getBoolean() ? ALL : MQTT);
     // HtmlPages
+    network->addCustomPage("thathing", [this](){ return new WThingPage(_gpios); });
     //WPage* configPage = new WPage(network, this->id(), "Configure device");
     //configPage->onPrintPage(std::bind(&WEspThingIO::_printConfigPage, this, std::placeholders::_1));
     //configPage->onSubmitPage(std::bind(&WEspThingIO::_saveConfigPage, this, std::placeholders::_1));
@@ -534,165 +489,8 @@ class WEspThingIO : public WDevice {
   void _saveConfigPage(AsyncWebServerRequest* request) {}*/
 
  protected:
-  WProperty* _getGpioConfig(byte index) {
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    return SETTINGS->getSetting(pNumber.c_str());
-  }
-
-  WProperty* _getGroupedGpioByName(const char* name) {
-    return _getGroupedGpioBySubString(name, FIRST_NAME);
-  }
-
-  WProperty* _getGroupedGpioByModeName(const char* name) {
-    return _getGroupedGpioBySubString(name, SECOND_NAME);
-  }
-
-  WProperty* _getGroupedGpioBySubString(const char* name, byte subStringIndex) {
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
-      byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-      if (_isGpioGrouped(gType)) {
-        char* gName = _getSubString(gConfig, subStringIndex);
-        if ((gName != nullptr) && (strcmp(gName, name) == 0)) {
-          return gConfig;
-        }
-      }
-    }
-    return nullptr;
-  }
-
-  WProperty* _addGpioConfig(byte gType) {
-    byte index = _numberOfGPIOs->asByte();
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    // Config
-    // WProperty* gConfig = network()->settings()->setByteArray(pNumber.c_str(),
-    // DEFAULT_PROP_ARRAY);
-    WProperty* gConfig = new WProperty(pNumber.c_str(), BYTE_ARRAY, "");
-    gConfig->asByteArray(4, DEFAULT_PROP_ARRAY);
-    SETTINGS->insert(gConfig, _numberOfSettings, pNumber.c_str());
-    _numberOfSettings++;
-    if (gType == GPIO_TYPE_UNKNOWN) {
-      gType = gConfig->byteArrayValue(BYTE_TYPE);
-    } else {
-      gConfig->byteArrayValue(BYTE_TYPE, gType);
-    }
-    pNumber.concat(".");
-    for (byte i = 0; i < _getNumberOfChars(gType); i++) {
-      String subNumber = pNumber;
-      subNumber.concat(i);
-      // network()->settings()->setString(subNumber.c_str(), "");
-      WProperty* sp = WProps::createStringProperty();
-      SETTINGS->insert(sp, _numberOfSettings, subNumber.c_str());
-      _numberOfSettings++;
-    }
-    return gConfig;
-  }
-
-  void _removeGpioConfig(byte index) {
-    WProperty* gConfig = _getGpioConfig(index);
-    byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    // Config
-    SETTINGS->remove(pNumber.c_str());
-    _numberOfSettings--;
-    pNumber.concat(".");
-    for (byte i = 0; i < _getNumberOfChars(gType); i++) {
-      String subNumber = pNumber;
-      subNumber.concat(i);
-      SETTINGS->remove(subNumber.c_str());
-      _numberOfSettings--;
-    }
-    // Move next gpios 1 place forward
-
-    for (int i = index + 1; i < _numberOfGPIOs->asByte(); i++) {
-      gConfig = _getGpioConfig(i);
-      byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-      // Config
-      pNumber = GPIO_DEFAULT_ID;
-      pNumber.concat(i);
-      String p2 = GPIO_DEFAULT_ID;
-      p2.concat(i - 1);
-      SETTINGS->changeId(pNumber.c_str(), p2.c_str());
-      pNumber.concat(".");
-      p2.concat(".");
-      for (byte b = 0; b < _getNumberOfChars(gType); b++) {
-        String subNumber = pNumber;
-        subNumber.concat(b);
-        String subP2 = p2;
-        subP2.concat(b);
-        SETTINGS->changeId(subNumber.c_str(), subP2.c_str());
-      }
-    }
-    _numberOfGPIOs->asByte(_numberOfGPIOs->asByte() - 1);
-  }
-
-  bool _updateEditingItem(AsyncWebServerRequest* request, Print* page) {
-    bool exists = (request->hasParam("gpio", true));
-    if (!exists) {
-      page->print("New item");
-      _clearEditingItem();
-      return true;
-    } else {
-      String sIndex = request->getParam("gpio", true)->value();
-      int index = atoi(sIndex.c_str());
-      page->print("Edit item: ");
-      page->print(sIndex);
-      _editingIndex = index;
-      _editingItem = _getGpioConfig(index);
-      return false;
-    }
-  }
-
-  void _ensureEditingItem(byte gType) {
-    if (_editingIndex == NO_INDEX) {
-      _editingIndex = _numberOfGPIOs->asByte();
-      _editingItem = _addGpioConfig(gType);
-      _numberOfGPIOs->asByte(_editingIndex + 1);
-    }
-  }
-
-  bool _isGpioFree(byte gpio) {
-    // exclude already used GPIOs
-    if ((_editingItem != nullptr) && (_editingItem->byteArrayValue(BYTE_GPIO) == gpio)) {
-      return true;
-    } else {
-      for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-        WProperty* gConfig = _getGpioConfig(i);
-        byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-        if (((_isGpioUsingGPIO(gType)) && (gConfig->byteArrayValue(BYTE_GPIO) == gpio)) ||
-            ((_isGpioUsingSCL(gType)) && (gConfig->byteArrayValue(BYTE_SCL) == gpio))) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  bool _isGpioAnOutput(byte gType) {
-    return ((gType == GPIO_TYPE_LED) || (gType == GPIO_TYPE_RELAY) ||
-            (gType == GPIO_TYPE_DIMMER) || (gType == GPIO_TYPE_RGB_LED));
-  }
-
-  bool _isGpioAnInput(byte gType) {
-    return ((gType == GPIO_TYPE_BUTTON) || (gType == GPIO_TYPE_SWITCH) ||
-            (gType == GPIO_TYPE_TEMP_SENSOR));
-  }
-
-  bool _isGpioGrouped(byte gType) {
-    return ((gType == GPIO_TYPE_MODE) || (gType == GPIO_TYPE_MERGE));
-  }
-
-  bool _isGpioUsingGPIO(byte gType) {
-    return (!_isGpioGrouped(gType));
-  }
-
-  bool _isGpioUsingSCL(byte gType) {
-    return (gType == GPIO_TYPE_TEMP_SENSOR);
-  }
-
+  
+  /*
   bool _addGpioChooserItem(Print* page, byte gpio, const char* title, byte bytePos, byte defaultGpio) {
     int aGpio = (_editingItem != nullptr ? _editingItem->byteArrayValue(bytePos) : defaultGpio);
     char* pNumber = new char[2];
@@ -803,40 +601,9 @@ class WEspThingIO : public WDevice {
       default:
         return HTTP_ADD_LED;
     }
-  }
+  }*/
 
-  String _getNextName(byte aType, byte subIndex, String baseName) {
-    int noMax = 0;
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
-      byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-      byte aProps = gConfig->byteArrayValue(BYTE_CONFIG);
-      bool gr = bitRead(aProps, BIT_CONFIG_PROPERTY_GROUPED);
-      if (aType == gType) {
-        int b = -1;
-        String gName = "";
-        if (!gr) {
-          char* gN = _getSubString(gConfig, subIndex);
-          gName = String(gN);
-          b = gName.lastIndexOf("_");
-        }
-        if (b > -1) {
-          noMax = max(noMax, (int)gName.substring(b + 1, gName.length()).toInt());
-          baseName = gName.substring(0, b);
-        } else {
-          noMax = 1;
-          baseName = (gName.length() > 0 ? gName : baseName);
-        }
-      }
-    }
-    if (noMax > 0) {
-      baseName.concat("_");
-      baseName.concat(String(noMax + 1));
-    }
-    return baseName;
-  }
-
-  void _addLinkedGpioChooser(Print* page, boolean newItem) {
+  /*void _addLinkedGpioChooser(Print* page, boolean newItem) {
     // BYTE_SWITCH_LINKED_GPIO
     page->printf(HTTP_COMBOBOX_BEGIN, "Select output GPIO:", "lgp");
     WProperty* linkedName = (newItem ? nullptr : _getSubProperty(_editingItem, FIRST_NAME));
@@ -863,7 +630,7 @@ class WEspThingIO : public WDevice {
       }
     }
     page->print(FPSTR(HTTP_COMBOBOX_END));
-  }
+  }*/
 
   /*void _printVisibility(Print* page, byte aProps, byte aType, String baseName, bool groupedInModeCheckBox) {
     bool gr = bitRead(aProps, BIT_CONFIG_PROPERTY_GROUPED);
@@ -931,20 +698,17 @@ class WEspThingIO : public WDevice {
   }*/
 
  private:
-  WProperty* _numberOfGPIOs;
-  byte _numberOfSettings;
-  WProperty* _editingItem;
-  byte _editingIndex;
+  WThingGpios* _gpios;
 
   void _configureOutput(WOutput* output, WProperty* gConfig, bool gr, bool mq, bool wt) {
     this->addOutput(output);
-    char* gName = _getSubString(gConfig, FIRST_NAME);
-    char* gTitle = _getSubString(gConfig, FIRST_TITLE);
+    char* gName = _gpios->getSubString(gConfig, FIRST_NAME);
+    char* gTitle = _gpios->getSubString(gConfig, FIRST_TITLE);
     if (gr) {
-      WProperty* groupedGpio = _getGroupedGpioByName(gName);
+      WProperty* groupedGpio = _gpios->getGroupedGpioByName(gName);
       if (groupedGpio != nullptr) {
         if (groupedGpio->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
-          char* modeName = _getSubString(groupedGpio, SECOND_NAME);
+          char* modeName = _gpios->getSubString(groupedGpio, SECOND_NAME);
           if (modeName != nullptr) {
             WProperty* modeProp = this->getPropertyById(modeName);
             if (modeProp != nullptr) {
@@ -986,9 +750,9 @@ class WEspThingIO : public WDevice {
   void _configureOutputModes(WOutput* output, WProperty* gConfig, bool mq, bool wt) {
     if (output->countModes() > 1) {
       // Mode property
-      String mName = String(_getSubString(gConfig, FIRST_NAME));
+      String mName = String(_gpios->getSubString(gConfig, FIRST_NAME));
       mName.concat(F("_mode"));
-      String mTitle = String(_getSubString(gConfig, FIRST_TITLE));
+      String mTitle = String(_gpios->getSubString(gConfig, FIRST_TITLE));
       mTitle.concat(F(" Mode"));
       WProperty* modeProp = WProps::createStringProperty(mTitle.c_str());
       SETTINGS->add(modeProp, mName.c_str());
@@ -1012,10 +776,10 @@ class WEspThingIO : public WDevice {
   }
 
   void _notifyGroupedChange(WProperty* property, byte subStringIndex) {
-    WProperty* groupedGpio = _getGroupedGpioBySubString(property->id(), subStringIndex);
+    WProperty* groupedGpio = _gpios->getGroupedGpioBySubString(property->title(), subStringIndex);
     if (groupedGpio != nullptr) {
-      char* gName = _getSubString(groupedGpio, FIRST_NAME);
-      char* mName = _getSubString(groupedGpio, SECOND_NAME);
+      char* gName = _gpios->getSubString(groupedGpio, FIRST_NAME);
+      char* mName = _gpios->getSubString(groupedGpio, SECOND_NAME);
       if ((gName != nullptr) && (mName != nullptr)) {
         WProperty* onOffProp = this->getPropertyById(gName);
         WProperty* modeProp = this->getPropertyById(mName);
@@ -1038,7 +802,7 @@ class WEspThingIO : public WDevice {
           } else {
             network()->error(F("Grouped GPIO '%s' has no outputs"), groupedGpio->id());
           }*/
-          network()->error(F("Grouped GPIO '%s' has no outputs (tbi)"), groupedGpio->id());
+          network()->error(F("Grouped GPIO '%s' has no outputs (tbi)"), groupedGpio->title());
         } else {
           network()->error(F("Name property or mode property is missing for grouped property: '%s'"), property->c_str());
         }
@@ -1051,16 +815,16 @@ class WEspThingIO : public WDevice {
   }
 
   void _notifyMergedChange(WProperty* property) {
-    WProperty* mergedGpio = _getGroupedGpioBySubString(property->id(), FIRST_NAME);
+    WProperty* mergedGpio = _gpios->getGroupedGpioBySubString(property->title(), FIRST_NAME);
     if (mergedGpio != nullptr) {
-      char* gName = _getSubString(mergedGpio, FIRST_NAME);
+      char* gName = _gpios->getSubString(mergedGpio, FIRST_NAME);
       bool iv = mergedGpio->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED);
       /*if (mergedGpio->hasOutputs()) {
         mergedGpio->outputs()->forEach([this, property, iv](WOutput* output) {
           output->setOn(iv ? !property->asBool() : property->asBool());
         });
       }*/
-      network()->error(F("Merged GPIO '%s' has no outputs (tbi)"), mergedGpio->id());
+      network()->error(F("Merged GPIO '%s' has no outputs (tbi)"), mergedGpio->title());
     } else {
       network()->error(F("Can't find merged property. Name of merged property: '%s'"), property->c_str());
     }
@@ -1068,15 +832,15 @@ class WEspThingIO : public WDevice {
 
   void _configureDevice() {
     // 1. Grouped
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
+    for (byte i = 0; i < _gpios->numberOfGPIOs()->asByte(); i++) {
+      WProperty* gConfig = _gpios->getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       if (gType == GPIO_TYPE_MODE) {
-        char* gName = _getSubString(gConfig, FIRST_NAME);
-        char* gTitle = _getSubString(gConfig, FIRST_TITLE);
-        char* mName = _getSubString(gConfig, SECOND_NAME);
+        char* gName = _gpios->getSubString(gConfig, FIRST_NAME);
+        char* gTitle = _gpios->getSubString(gConfig, FIRST_TITLE);
+        char* mName = _gpios->getSubString(gConfig, SECOND_NAME);
         network()->debug(F("add mode item '%s'"), gName);
-        char* mTitle = _getSubString(gConfig, SECOND_TITLE);
+        char* mTitle = _gpios->getSubString(gConfig, SECOND_TITLE);
         bool mq = true;
         bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
         WProperty* onOffProp = WProps::createOnOffProperty(gTitle);
@@ -1085,7 +849,7 @@ class WEspThingIO : public WDevice {
         onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
         this->addProperty(onOffProp, gName);
         WProperty* modeProp = WProps::createStringProperty(mTitle);
-        SETTINGS->add(modeProp);
+        SETTINGS->add(modeProp, mTitle);
         modeProp->visibilityMqtt(mq);
         modeProp->visibilityWebthing(wt);
         modeProp->addListener([this, modeProp]() {
@@ -1095,12 +859,12 @@ class WEspThingIO : public WDevice {
       }
     }
     // 2. Merged
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
+    for (byte i = 0; i < _gpios->numberOfGPIOs()->asByte(); i++) {
+      WProperty* gConfig = _gpios->getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       if (gType == GPIO_TYPE_MERGE) {
-        char* gName = _getSubString(gConfig, FIRST_NAME);
-        char* gTitle = _getSubString(gConfig, FIRST_TITLE);
+        char* gName = _gpios->getSubString(gConfig, FIRST_NAME);
+        char* gTitle = _gpios->getSubString(gConfig, FIRST_TITLE);
         network()->debug(F("add merge item '%s'"), gName);
         bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
         bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
@@ -1113,11 +877,11 @@ class WEspThingIO : public WDevice {
         onOffProp->addListener([this, onOffProp]() { _notifyMergedChange(onOffProp); });
         this->addProperty(onOffProp, gName);
         if (gr) {
-          char* pgName = _getSubString(gConfig, SECOND_NAME);
-          WProperty* groupedGpio = _getGroupedGpioByName(pgName);
+          char* pgName = _gpios->getSubString(gConfig, SECOND_NAME);
+          WProperty* groupedGpio = _gpios->getGroupedGpioByName(pgName);
           if (groupedGpio != nullptr) {
             if (groupedGpio->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
-              char* modeName = _getSubString(groupedGpio, SECOND_NAME);
+              char* modeName = _gpios->getSubString(groupedGpio, SECOND_NAME);
               if (modeName != nullptr) {
                 WProperty* modeProp = this->getPropertyById(modeName);
                 if (modeProp != nullptr) {
@@ -1131,7 +895,7 @@ class WEspThingIO : public WDevice {
             WMergedOutput* output = new WMergedOutput(onOffProp);
             output->on(groupedGpio);
             output->setId(gTitle);
-            network()->debug("grouped %s has added a merged output", groupedGpio->id(), output->id());
+            network()->debug("grouped %s has added a merged output", groupedGpio->title(), output->id());
           } else {
             network()->error("Can't find grouped property. Name of grouped property: '%s'", pgName);
           }
@@ -1139,8 +903,8 @@ class WEspThingIO : public WDevice {
       }
     }
     // 3. Outputs
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
+    for (byte i = 0; i < _gpios->numberOfGPIOs()->asByte(); i++) {
+      WProperty* gConfig = _gpios->getGpioConfig(i);
       bool gr = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_GROUPED);
       bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
       bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
@@ -1168,10 +932,10 @@ class WEspThingIO : public WDevice {
           WPwmDimmer* pwm = new WPwmDimmer(gConfig->byteArrayValue(BYTE_GPIO));
           _configureOutput(pwm, gConfig, gr, mq, wt);
           // Level
-          char* gName = _getSubString(gConfig, SECOND_NAME);
-          char* gTitle = _getSubString(gConfig, SECOND_TITLE);
+          char* gName = _gpios->getSubString(gConfig, SECOND_NAME);
+          char* gTitle = _gpios->getSubString(gConfig, SECOND_TITLE);
           WProperty* level = WProps::createBrightnessProperty(gTitle);
-          SETTINGS->add(level);
+          SETTINGS->add(level, gTitle);
           level->visibility(true, true);
           this->addProperty(level, gName);
           pwm->level(level);
@@ -1190,9 +954,9 @@ class WEspThingIO : public WDevice {
       }
     }
     // 4. Inputs
-    for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = _getGpioConfig(i);
-      char* gName = _getSubString(gConfig, FIRST_NAME);
+    for (byte i = 0; i < _gpios->numberOfGPIOs()->asByte(); i++) {
+      WProperty* gConfig = _gpios->getGpioConfig(i);
+      char* gName = _gpios->getSubString(gConfig, FIRST_NAME);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       switch (gType) {
         case GPIO_TYPE_BUTTON:
@@ -1238,12 +1002,12 @@ class WEspThingIO : public WDevice {
           // Properties
           bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
           bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
-          char* gTitle = _getSubString(gConfig, FIRST_TITLE);
+          char* gTitle = _gpios->getSubString(gConfig, FIRST_TITLE);
           WProperty* temperature = WProps::createTemperatureProperty(gTitle);
           temperature->visibility(mq, wt);
           this->addProperty(temperature, gName);
-          gName = _getSubString(gConfig, SECOND_NAME);
-          gTitle = _getSubString(gConfig, SECOND_TITLE);
+          gName = _gpios->getSubString(gConfig, SECOND_NAME);
+          gTitle = _gpios->getSubString(gConfig, SECOND_TITLE);
           WProperty* humidity = WProps::createHumidityProperty(gTitle);
           this->addProperty(humidity, gName);
           // Set properties to sensor
@@ -1255,156 +1019,8 @@ class WEspThingIO : public WDevice {
     }
   }
 
-  void _addGpioConfigItem(byte type, byte gpio, bool grouped, bool mqtt, bool webthing, bool inverted) {
-    _ensureEditingItem(type);
-    //_editingItem->setByteArrayValue(BYTE_TYPE, type);
-    _editingItem->byteArrayValue(BYTE_GPIO, gpio);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_GROUPED, grouped);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT, mqtt);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING, webthing);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED, inverted);
-
-    String pNumber = _editingItem->id();
-    pNumber.concat(".");
-    byte gType = _editingItem->byteArrayValue(BYTE_TYPE);
-    for (byte i = 0; i < _getNumberOfChars(gType); i++) {
-      String subNumber = pNumber;
-      subNumber.concat(i);
-      SETTINGS->setString(subNumber.c_str(), "");
-    }
-  }
-
-  void _clearEditingItem() {
-    _editingItem = nullptr;
-    _editingIndex = NO_INDEX;
-  }
-
-  WProperty* _setSubString(WProperty* gpioConfig, byte subIndex, String value) {
-    String pNumber = gpioConfig->id();
-    pNumber.concat(".");
-    pNumber.concat(subIndex);
-    return SETTINGS->setString(pNumber.c_str(), value.c_str());
-  }
-
-  WProperty* _getSubProperty(WProperty* gpioConfig, byte subIndex) {
-    if (gpioConfig != nullptr) {
-      String pNumber = gpioConfig->id();
-      pNumber.concat(".");
-      pNumber.concat(subIndex);
-      return SETTINGS->getSetting(pNumber.c_str());
-    } else {
-      return nullptr;
-    }
-  }
-
-  char* _getSubString(WProperty* gpioConfig, byte subIndex) {
-    WProperty* p = _getSubProperty(gpioConfig, subIndex);
-    return (p != nullptr ? p->c_str() : nullptr);
-  }
-
-  void _addRelay(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle) {
-    _addGpioConfigItem(GPIO_TYPE_RELAY, gpio, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _clearEditingItem();
-  }
-
-  void _addDimmer(byte gpio, bool webthing, String oName, String oTitle, String lName, String lTitle) {
-    _addGpioConfigItem(GPIO_TYPE_DIMMER, gpio, false, true, webthing, false);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _setSubString(_editingItem, SECOND_NAME, lName);
-    _setSubString(_editingItem, SECOND_TITLE, lTitle);
-    _clearEditingItem();
-  }
-
-  void _addLed(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle, bool linkState) {
-    _addGpioConfigItem(GPIO_TYPE_LED, gpio, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_LINKSTATE, linkState);
-    _clearEditingItem();
-  }
-
-  void _addRgbLed(byte gpio, bool gr, bool mqtt, bool webthing, byte noOfLeds, String oName, String oTitle, bool groupInMode) {
-    _addGpioConfigItem(GPIO_TYPE_RGB_LED, gpio, gr, mqtt, webthing, false);
-    _editingItem->byteArrayValue(BYTE_NO_OF_LEDS, noOfLeds);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_RGB_GROUPED_PROGRAMS_IN_MODE, groupInMode);
-    _clearEditingItem();
-  }
-
-  void _addTempSensor(byte sda, byte scl, bool mqtt, bool webthing, bool isHtu21, String tName, String tTitle, String hName, String hTitle) {
-    _addGpioConfigItem(GPIO_TYPE_TEMP_SENSOR, sda, false, mqtt, webthing, false);
-    _editingItem->byteArrayValue(BYTE_SCL, scl);
-    _setSubString(_editingItem, FIRST_NAME, tName);
-    _setSubString(_editingItem, FIRST_TITLE, tTitle);
-    _setSubString(_editingItem, SECOND_NAME, hName);
-    _setSubString(_editingItem, SECOND_TITLE, hTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_TEMP_SENSOR_TYPE, isHtu21);
-    _clearEditingItem();
-  }
-
-  void _addGroupedProperty(bool webthing, String propertyName, String propertyTitle, String modeName, String modeTitle) {
-    _addGpioConfigItem(GPIO_TYPE_MODE, BYTE_NO_GPIO, false, true, webthing, false);
-    _setSubString(_editingItem, FIRST_NAME, propertyName);
-    _setSubString(_editingItem, FIRST_TITLE, propertyTitle);
-    _setSubString(_editingItem, SECOND_NAME, modeName);
-    _setSubString(_editingItem, SECOND_TITLE, modeTitle);
-    _clearEditingItem();
-  }
-
-  void _addMergedProperty(bool gr, bool mqtt, bool webthing, bool inverted, String propertyName, String propertyTitle, String groupedName) {
-    _addGpioConfigItem(GPIO_TYPE_MERGE, BYTE_NO_GPIO, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, propertyName);
-    _setSubString(_editingItem, FIRST_TITLE, propertyTitle);
-    _setSubString(_editingItem, SECOND_NAME, groupedName);
-    _clearEditingItem();
-  }
-
-  void _addSwitch(byte gpio, bool switchDirect, String oName) {
-    _addGpioConfigItem(GPIO_TYPE_SWITCH, gpio, false, false, false, false);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_DIRECTLY, switchDirect);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _clearEditingItem();
-  }
-
-  void _addButton(byte gpio, bool switchDirect, String oName, bool inverted, bool switchApLongPress) {
-    _addGpioConfigItem(GPIO_TYPE_BUTTON, gpio, false, false, false, false);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_DIRECTLY, switchDirect);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED, inverted);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_AP_LONGPRESS, switchApLongPress);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _clearEditingItem();
-  }
-
-  byte _getNumberOfChars(byte gType) {
-    switch (gType) {
-      case GPIO_TYPE_MERGE:
-        return 3;
-      case GPIO_TYPE_MODE:
-        return 4;
-      case GPIO_TYPE_LED:
-        return 2;
-      case GPIO_TYPE_RELAY:
-        return 2;
-      case GPIO_TYPE_DIMMER:
-        return 4;
-      case GPIO_TYPE_RGB_LED:
-        return 2;
-      case GPIO_TYPE_TEMP_SENSOR:
-        return 4;
-      case GPIO_TYPE_SWITCH:
-        return 1;
-      case GPIO_TYPE_BUTTON:
-        return 1;
-      default:
-        return 0;
-    }
-  }
-
-  void _configureTemplate(byte templateIndex) {
+  
+  /*void _configureTemplate(byte templateIndex) {
     // clear all GPIOs
     for (int i = _numberOfGPIOs->asByte() - 1; i >= 0; i--) {
       _removeGpioConfig(i);
@@ -1481,7 +1097,7 @@ class WEspThingIO : public WDevice {
         break;
       }
     }
-  }
+  }*/
 };
 
 #endif

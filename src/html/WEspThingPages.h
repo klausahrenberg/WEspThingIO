@@ -1,12 +1,13 @@
 #ifndef WEspThingPages_h
 #define WEspThingPages_h
 
+#include "../WThingGpios.h"
 #include "html/WPage.h"
 
 class WThingPage : public WPage {
  public:
-  WThingPage() : WPage() {
-    Serial.println("thing page created");
+  WThingPage(WThingGpios* gpios) : WPage() {
+    _gpios = gpios;
   }
 
   virtual void createControls(WebControl* parentNode) {    
@@ -20,8 +21,13 @@ class WThingPage : public WPage {
 
   virtual WFormResponse* submitForm(WStringList* args) {
     LOG->debug("handle submitform");
-    return new WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
+    WStringList* agpio = WJsonParser::asMap(args->getById("json"));
+    return new WFormResponse(FO_NONE, PSTR("submit ThingPage"));
   }  
+
+ protected:
+  WThingGpios* _gpios;
+
 };
 
 

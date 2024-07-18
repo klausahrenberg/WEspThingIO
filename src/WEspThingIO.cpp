@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "WNetwork.h"
-#include "WThingIO.h"
-#include "html/WEspThingPages.h"
+#include "WEspThingIO.h"
 
 WNetwork *network;
 
@@ -16,13 +15,7 @@ void setup() {
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
-	network->addDevice(new WThingIO(network));	
-
-	//this->addCustomPage(WC_WIFI, [this]() { return new WNetworkPage(); });
-	network->addCustomPage("thathing", [](){ 
-		Serial.println("initialzer called");
-		return new WThingPage(); 
-	});
+	network->addDevice(new WEspThingIO(network));	
 }
 
 void loop() {
