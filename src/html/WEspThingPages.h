@@ -4,24 +4,64 @@
 #include "../WThingGpios.h"
 #include "html/WPage.h"
 
+const static char W_JSON_EXAMPLE[] PROGMEM = R"=====(
+[
+ {
+  'type':'led',
+  'gpio':2,
+  'grouped':false,
+  'mqtt':true,
+  'webthings':true,
+  'inverted':false,
+  'linkState':true,
+  'id':'led0',
+  'title':'LED onboard',
+ },
+ {
+  'type':'button',
+  'gpio':4,
+  'switchDirect':'led0',
+ },
+]
+)====="; 
+
 class WThingPage : public WPage {
  public:
   WThingPage(WThingGpios* gpios) : WPage() {
     _gpios = gpios;
   }
 
+
+
   virtual void createControls(WebControl* parentNode) {    
     /*WebControl* div = new WebControl(WC_DIV, WC_CLASS, WC_WHITE_BOX, nullptr);    
     parentNode->add(div); */
     WebControl* form = new WebForm("thathing", nullptr);
     parentNode->add(form);
-    form->add(new WebTextArea("json", "Json Input", "Put your json here"));
+    form->add(new WebLabel(_gpios->numberOfGPIOs()->toString()));
+    form->add(new WebTextArea("json", "Json Input", W_JSON_EXAMPLE));
     form->add((new WebSubmitButton(PSTR("Save configuration"))));
   }
 
-  virtual WFormResponse* submitForm(WStringList* args) {
-    LOG->debug("handle submitform");
-    WStringList* agpio = WJsonParser::asMap(args->getById("json"));
+  virtual WFormResponse* submitForm(WList<WValue>* args) {
+    LOG->debug("handle submitform: %s", args->getById("json")->toString());
+    WList<WValue>* agpio = WJsonParser::asMap(args->getById("json")->asString());
+    
+    LOG->debug("list items count: %d", agpio->size());
+
+    agpio->forEach([](WValue* value, const char* key) {
+      LOG->debug("key '%s' / value '%s'", key, value->toString());
+      if (value->type() == LIST) {
+        value->asList()->forEach([](WValue* subValue, const char* subId) {
+          LOG->debug("  > subkey '%s' / subvalue '%s'", subId, subValue->toString());
+        });
+      }
+    });
+
+
+
+    //_addLed(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle, bool linkState)
+
     return new WFormResponse(FO_NONE, PSTR("submit ThingPage"));
   }  
 

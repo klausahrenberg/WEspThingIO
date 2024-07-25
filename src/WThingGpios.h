@@ -2,7 +2,8 @@
 #define W_THING_GIOS_H
 
 #define MAX_GPIOS 12
-#define GPIO_DEFAULT_ID "^g_"
+#define GPIO_DEFAULT_ID "^g.%d"
+#define GPIO_DEFAULT_ID_SUB GPIO_DEFAULT_ID ".%d"
 const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 
 #define MAX_PROP_BYTES 4
@@ -46,35 +47,40 @@ const static char TG_NUMBER_OF_GPIOS[] PROGMEM = "numberOfGPIOs";
 class WThingGpios {
  public: 
   WThingGpios() {
-    _editingItem = nullptr;
-    _editingIndex = NO_INDEX;
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
-    _numberOfGPIOs->visibility(NONE);
-    //this->addProperty(_numberOfGPIOs,TG_NUMBER_OF_GPIOS );
-    _numberOfSettings = SETTINGS->size();
+    
+    
+
     byte nog = _numberOfGPIOs->asByte();
     _numberOfGPIOs->asByte(0);
     for (byte i = 0; i < nog; i++) {
-      _addGpioConfig(GPIO_TYPE_UNKNOWN);
-      _numberOfGPIOs->asByte(i + 1);
+      _add(GPIO_TYPE_UNKNOWN);      
     }
+
+    //_addLed(0, 2, false, false, false, false, "led", "", true);
+
+    Serial.print("numberOfGpios ");
+    Serial.println(_numberOfGPIOs->asByte());
+
+    _add(GPIO_TYPE_LED);
+
+    Serial.print("numberOfGpis ");
+    Serial.println(_numberOfGPIOs->asByte());
+    //SETTINGS->save();
   }
 
-  char* getSubString(WProperty* gpioConfig, byte subIndex) {
-    WProperty* p = _getSubProperty(gpioConfig, subIndex);
-    return (p != nullptr ? p->c_str() : nullptr);
-  }
+  
 
-  WProperty* getGroupedGpioByName(const char* name) {
+  WValue* getGroupedGpioByName(const char* name) {
     return getGroupedGpioBySubString(name, FIRST_NAME);
   }
 
-  WProperty* getGroupedGpioBySubString(const char* name, byte subStringIndex) {
+  WValue* getGroupedGpioBySubString(const char* name, byte subStringIndex) {
     for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = getGpioConfig(i);
+      WValue* gConfig = getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       if (_isGpioGrouped(gType)) {
-        char* gName = getSubString(gConfig, subStringIndex);
+        char* gName = getSubString(i, subStringIndex);
         if ((gName != nullptr) && (strcmp(gName, name) == 0)) {
           return gConfig;
         }
@@ -83,66 +89,72 @@ class WThingGpios {
     return nullptr;
   }
 
-  WProperty* numberOfGPIOs() { return _numberOfGPIOs; }
+  WValue* numberOfGPIOs() { return _numberOfGPIOs; }
 
-  WProperty* getGpioConfig(byte index) {
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    return SETTINGS->getSetting(pNumber.c_str());
+  WValue* getGpioConfig(byte index) {
+    return SETTINGS->getById(WValue::ofPattern(GPIO_DEFAULT_ID, index).asString());    
+  }
+
+  char* getSubString(byte index, byte subIndex) {
+    WValue* p = _getSubProperty(index, subIndex);
+    return (p != nullptr ? p->asString() : nullptr);
   }
 
  protected:
-  WProperty* _numberOfGPIOs;
-  byte _numberOfSettings;
-  WProperty* _editingItem;
-  byte _editingIndex;
+  WValue* _numberOfGPIOs;
+  //byte _numberOfSettings;
 
-  WProperty* _getGroupedGpioByModeName(const char* name) {
+  WValue* _getSubProperty(byte index, byte subIndex) {
+    String pNumber = GPIO_DEFAULT_ID;
+    pNumber.concat(index);
+    pNumber.concat(".");
+    pNumber.concat(subIndex);
+    return SETTINGS->getById(pNumber.c_str());
+  }
+
+  WValue* _getGroupedGpioByModeName(const char* name) {
     return getGroupedGpioBySubString(name, SECOND_NAME);
   }
 
-  WProperty* _addGpioConfig(byte gType) {
+  WValue* _add(byte gType) {
     byte index = _numberOfGPIOs->asByte();
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    // Config
-    // WProperty* gConfig = network()->settings()->setByteArray(pNumber.c_str(),
-    // DEFAULT_PROP_ARRAY);
-    WProperty* gConfig = new WProperty(pNumber.c_str(), BYTE_ARRAY, "");
-    gConfig->asByteArray(4, DEFAULT_PROP_ARRAY);
-    SETTINGS->insert(gConfig, _numberOfSettings, pNumber.c_str());
-    _numberOfSettings++;
+
+    WValue pNumber = WValue::ofPattern(GPIO_DEFAULT_ID, index);
+    Serial.println(pNumber.asString());
+    WValue* gConfig = new WValue(4, DEFAULT_PROP_ARRAY);
+    SETTINGS->add(gConfig, pNumber.asString());
+    //delete pNumber;
+    //type;
     if (gType == GPIO_TYPE_UNKNOWN) {
       gType = gConfig->byteArrayValue(BYTE_TYPE);
     } else {
       gConfig->byteArrayValue(BYTE_TYPE, gType);
     }
-    pNumber.concat(".");
+    
     for (byte i = 0; i < _getNumberOfChars(gType); i++) {
-      String subNumber = pNumber;
-      subNumber.concat(i);
-      // network()->settings()->setString(subNumber.c_str(), "");
-      WProperty* sp = WProps::createStringProperty();
-      SETTINGS->insert(sp, _numberOfSettings, subNumber.c_str());
-      _numberOfSettings++;
+      WValue subNumber = WValue::ofPattern(GPIO_DEFAULT_ID_SUB, index, i);
+      Serial.println(subNumber.asString());      
+      SETTINGS->add(new WValue(STRING), subNumber.asString());      
+      //delete subNumber;
     }
+    _numberOfGPIOs->asByte(_numberOfGPIOs->asByte() + 1);
+
     return gConfig;
   }
 
   void _removeGpioConfig(byte index) {
-    WProperty* gConfig = getGpioConfig(index);
+    WValue* gConfig = getGpioConfig(index);
     byte gType = gConfig->byteArrayValue(BYTE_TYPE);
     String pNumber = GPIO_DEFAULT_ID;
     pNumber.concat(index);
     // Config
     SETTINGS->remove(pNumber.c_str());
-    _numberOfSettings--;
+    //_numberOfSettings--;
     pNumber.concat(".");
     for (byte i = 0; i < _getNumberOfChars(gType); i++) {
       String subNumber = pNumber;
       subNumber.concat(i);
-      SETTINGS->remove(subNumber.c_str());
-      _numberOfSettings--;
+      SETTINGS->remove(subNumber.c_str());      
     }
     // Move next gpios 1 place forward
 
@@ -170,18 +182,18 @@ class WThingGpios {
    
   bool _isGpioFree(byte gpio) {
     // exclude already used GPIOs
-    if ((_editingItem != nullptr) && (_editingItem->byteArrayValue(BYTE_GPIO) == gpio)) {
+    /*if ((_editingItem != nullptr) && (_editingItem->byteArrayValue(BYTE_GPIO) == gpio)) {
       return true;
-    } else {
+    } else {*/
       for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-        WProperty* gConfig = getGpioConfig(i);
+        WValue* gConfig = getGpioConfig(i);
         byte gType = gConfig->byteArrayValue(BYTE_TYPE);
         if (((_isGpioUsingGPIO(gType)) && (gConfig->byteArrayValue(BYTE_GPIO) == gpio)) ||
             ((_isGpioUsingSCL(gType)) && (gConfig->byteArrayValue(BYTE_SCL) == gpio))) {
           return false;
         }
       }
-    }
+    //}
     return true;
   }
 
@@ -207,23 +219,15 @@ class WThingGpios {
     return (gType == GPIO_TYPE_TEMP_SENSOR);
   }
 
-  WProperty* _setSubString(WProperty* gpioConfig, byte subIndex, String value) {
-    String pNumber = gpioConfig->title();
+  WValue* _setSubString(WValue* gpioConfig, byte subIndex, String value) {
+    /*String pNumber = gpioConfig->title();
     pNumber.concat(".");
     pNumber.concat(subIndex);
-    return SETTINGS->setString(pNumber.c_str(), value.c_str());
+    return SETTINGS->setString(pNumber.c_str(), value.c_str());*/
+    return nullptr;
   }
 
-  WProperty* _getSubProperty(WProperty* gpioConfig, byte subIndex) {
-    if (gpioConfig != nullptr) {
-      String pNumber = gpioConfig->title();
-      pNumber.concat(".");
-      pNumber.concat(subIndex);
-      return SETTINGS->getSetting(pNumber.c_str());
-    } else {
-      return nullptr;
-    }
-  }
+  
 
   byte _getNumberOfChars(byte gType) {
     switch (gType) {
@@ -253,7 +257,7 @@ class WThingGpios {
   String _getNextName(byte aType, byte subIndex, String baseName) {
     int noMax = 0;
     for (byte i = 0; i < _numberOfGPIOs->asByte(); i++) {
-      WProperty* gConfig = getGpioConfig(i);
+      WValue* gConfig = getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       byte aProps = gConfig->byteArrayValue(BYTE_CONFIG);
       bool gr = bitRead(aProps, BIT_CONFIG_PROPERTY_GROUPED);
@@ -261,7 +265,7 @@ class WThingGpios {
         int b = -1;
         String gName = "";
         if (!gr) {
-          char* gN = getSubString(gConfig, subIndex);
+          char* gN = getSubString(i, subIndex);
           gName = String(gN);
           b = gName.lastIndexOf("_");
         }
@@ -280,133 +284,6 @@ class WThingGpios {
     }
     return baseName;
   }
-
-  void _addGpioConfigItem(byte type, byte gpio, bool grouped, bool mqtt, bool webthing, bool inverted) {
-    _ensureEditingItem(type);
-    //_editingItem->setByteArrayValue(BYTE_TYPE, type);
-    _editingItem->byteArrayValue(BYTE_GPIO, gpio);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_GROUPED, grouped);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT, mqtt);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING, webthing);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED, inverted);
-
-    String pNumber = _editingItem->title();
-    pNumber.concat(".");
-    byte gType = _editingItem->byteArrayValue(BYTE_TYPE);
-    for (byte i = 0; i < _getNumberOfChars(gType); i++) {
-      String subNumber = pNumber;
-      subNumber.concat(i);
-      SETTINGS->setString(subNumber.c_str(), "");
-    }
-  }
-
-  void _clearEditingItem() {
-    _editingItem = nullptr;
-    _editingIndex = NO_INDEX;
-  }
-
-  void _addRelay(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle) {
-    _addGpioConfigItem(GPIO_TYPE_RELAY, gpio, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _clearEditingItem();
-  }
-
-  void _addDimmer(byte gpio, bool webthing, String oName, String oTitle, String lName, String lTitle) {
-    _addGpioConfigItem(GPIO_TYPE_DIMMER, gpio, false, true, webthing, false);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _setSubString(_editingItem, SECOND_NAME, lName);
-    _setSubString(_editingItem, SECOND_TITLE, lTitle);
-    _clearEditingItem();
-  }
-
-  void _addLed(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle, bool linkState) {
-    _addGpioConfigItem(GPIO_TYPE_LED, gpio, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_LINKSTATE, linkState);
-    _clearEditingItem();
-  }
-
-  void _addRgbLed(byte gpio, bool gr, bool mqtt, bool webthing, byte noOfLeds, String oName, String oTitle, bool groupInMode) {
-    _addGpioConfigItem(GPIO_TYPE_RGB_LED, gpio, gr, mqtt, webthing, false);
-    _editingItem->byteArrayValue(BYTE_NO_OF_LEDS, noOfLeds);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _setSubString(_editingItem, FIRST_TITLE, oTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_RGB_GROUPED_PROGRAMS_IN_MODE, groupInMode);
-    _clearEditingItem();
-  }
-
-  void _addTempSensor(byte sda, byte scl, bool mqtt, bool webthing, bool isHtu21, String tName, String tTitle, String hName, String hTitle) {
-    _addGpioConfigItem(GPIO_TYPE_TEMP_SENSOR, sda, false, mqtt, webthing, false);
-    _editingItem->byteArrayValue(BYTE_SCL, scl);
-    _setSubString(_editingItem, FIRST_NAME, tName);
-    _setSubString(_editingItem, FIRST_TITLE, tTitle);
-    _setSubString(_editingItem, SECOND_NAME, hName);
-    _setSubString(_editingItem, SECOND_TITLE, hTitle);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_TEMP_SENSOR_TYPE, isHtu21);
-    _clearEditingItem();
-  }
-
-  void _addGroupedProperty(bool webthing, String propertyName, String propertyTitle, String modeName, String modeTitle) {
-    _addGpioConfigItem(GPIO_TYPE_MODE, BYTE_NO_GPIO, false, true, webthing, false);
-    _setSubString(_editingItem, FIRST_NAME, propertyName);
-    _setSubString(_editingItem, FIRST_TITLE, propertyTitle);
-    _setSubString(_editingItem, SECOND_NAME, modeName);
-    _setSubString(_editingItem, SECOND_TITLE, modeTitle);
-    _clearEditingItem();
-  }
-
-  void _addMergedProperty(bool gr, bool mqtt, bool webthing, bool inverted, String propertyName, String propertyTitle, String groupedName) {
-    _addGpioConfigItem(GPIO_TYPE_MERGE, BYTE_NO_GPIO, gr, mqtt, webthing, inverted);
-    _setSubString(_editingItem, FIRST_NAME, propertyName);
-    _setSubString(_editingItem, FIRST_TITLE, propertyTitle);
-    _setSubString(_editingItem, SECOND_NAME, groupedName);
-    _clearEditingItem();
-  }
-
-  void _addSwitch(byte gpio, bool switchDirect, String oName) {
-    _addGpioConfigItem(GPIO_TYPE_SWITCH, gpio, false, false, false, false);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_DIRECTLY, switchDirect);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _clearEditingItem();
-  }
-
-  void _addButton(byte gpio, bool switchDirect, String oName, bool inverted, bool switchApLongPress) {
-    _addGpioConfigItem(GPIO_TYPE_BUTTON, gpio, false, false, false, false);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_DIRECTLY, switchDirect);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_LED_INVERTED, inverted);
-    _editingItem->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_SWITCH_AP_LONGPRESS, switchApLongPress);
-    _setSubString(_editingItem, FIRST_NAME, oName);
-    _clearEditingItem();
-  }
-
-  void _ensureEditingItem(byte gType) {
-    if (_editingIndex == NO_INDEX) {
-      _editingIndex = _numberOfGPIOs->asByte();
-      _editingItem = _addGpioConfig(gType);
-      _numberOfGPIOs->asByte(_editingIndex + 1);
-    }
-  }
-
-  bool _updateEditingItem(AsyncWebServerRequest* request, Print* page) {
-    bool exists = (request->hasParam("gpio", true));
-    if (!exists) {
-      page->print("New item");
-      _clearEditingItem();
-      return true;
-    } else {
-      String sIndex = request->getParam("gpio", true)->value();
-      int index = atoi(sIndex.c_str());
-      page->print("Edit item: ");
-      page->print(sIndex);
-      _editingIndex = index;
-      _editingItem = getGpioConfig(index);
-      return false;
-    }
-  }
-
 
 };
 
