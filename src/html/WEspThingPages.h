@@ -25,9 +25,9 @@ const static char W_JSON_EXAMPLE[] PROGMEM = R"=====(
 ]
 )====="; 
 
-class WThingPage : public WPage {
+class WJsonPage : public WPage {
  public:
-  WThingPage(WThingGpios* gpios) : WPage() {
+  WJsonPage(WThingGpios* gpios) : WPage() {
     _gpios = gpios;
   }
 
@@ -71,13 +71,19 @@ class WThingPage : public WPage {
 };
 
 
-class WEspThingPage : public WPage {
+class WThingPage : public WPage {
  public:
-  WEspThingPage() : WPage() {
+  WThingPage(WThingGpios* gpios) : WPage() {
+    _gpios = gpios;
   }
 
   virtual void createControls(WebControl* parentNode) {    
-    
+    WebControl* div = new WebControl(WC_DIV, WC_CLASS, WC_WHITE_BOX, nullptr);
+    parentNode->add(div);
+    div->add((new WebTable(_gpios))->onPrintRow([this](Print* stream, WValue* item, const char* id){
+      //WebTable<WValue>::headerCell(stream, id);
+      WebTable<WValue>::dataCell(stream, item->toString());
+    }));
   }
 
   /*virtual void _printConfigPage(WPage* page) {
@@ -209,8 +215,10 @@ class WEspThingPage : public WPage {
     page->print(FPSTR(HTTP_CONFIG_SAVE_BUTTON));
   }*/
 
+ protected:
+  WThingGpios* _gpios;
+
  private:
- 
 
 };
 

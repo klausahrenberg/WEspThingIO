@@ -51,7 +51,7 @@ class WMergedOutput : public WOutput {
 
   void _updateOn() {
     WOutput::_updateOn();
-    _merged->value().asBool(this->isOn());
+    _merged->value()->asBool(this->isOn());
   };
 
  private:
@@ -72,6 +72,7 @@ class WEspThingIO : public WDevice {
         ALL);  // this->showAsWebthingDevice->getBoolean() ? ALL : MQTT);
     // HtmlPages
     network->addCustomPage("thathing", [this](){ return new WThingPage(_gpios); }, PSTR("Configure device"));
+    network->addCustomPage("thathing", [this](){ return new WJsonPage(_gpios); }, PSTR("Json"));
     //WPage* configPage = new WPage(network, this->id(), "Configure device");
     //configPage->onPrintPage(std::bind(&WEspThingIO::_printConfigPage, this, std::placeholders::_1));
     //configPage->onSubmitPage(std::bind(&WEspThingIO::_saveConfigPage, this, std::placeholders::_1));
@@ -842,18 +843,18 @@ class WEspThingIO : public WDevice {
       Serial.println("_configureDevice a..");
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       LOG->debug("ich habe hier %d", gType);
-      /*if (gType == GPIO_TYPE_MODE) {
-        char* gName = _gpios->getSubString(i, FIRST_NAME);
-        char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
-        char* mName = _gpios->getSubString(i, SECOND_NAME);        
-        char* mTitle = _gpios->getSubString(i, SECOND_TITLE);
+      if (gType == GPIO_TYPE_MODE) {
+        const char* gName = _gpios->getSubString(i, FIRST_NAME);
+        const char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
+        const char* mName = _gpios->getSubString(i, SECOND_NAME);        
+        const char* mTitle = _gpios->getSubString(i, SECOND_TITLE);
         bool mq = true;
         bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
         WProperty* onOffProp = WProps::createOnOffProperty(gTitle);
         onOffProp->visibilityMqtt(mq);
         onOffProp->visibilityWebthing(wt);
         onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
-        this->addProperty(onOffProp, gName);
+        this->addProperty(onOffProp, gName);        
         WProperty* modeProp = WProps::createStringProperty(mTitle);
         SETTINGS->add(modeProp->value(), mName);
         modeProp->visibilityMqtt(mq);
@@ -862,7 +863,7 @@ class WEspThingIO : public WDevice {
           _notifyGroupedChange(modeProp, SECOND_NAME);
         });
         this->addProperty(modeProp, mName);
-      }*/
+      }
     }
     Serial.println("_configureDevice b");
     // 2. Merged
@@ -870,8 +871,8 @@ class WEspThingIO : public WDevice {
       WValue* gConfig = _gpios->getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       if (gType == GPIO_TYPE_MERGE) {
-        char* gName = _gpios->getSubString(i, FIRST_NAME);
-        char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
+        const char* gName = _gpios->getSubString(i, FIRST_NAME);
+        const char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
         network()->debug(F("add merge item '%s'"), gName);
         bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
         bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
@@ -880,14 +881,14 @@ class WEspThingIO : public WDevice {
         WProperty* onOffProp = WProps::createOnOffProperty(gTitle);
         onOffProp->visibilityMqtt(mq);
         onOffProp->visibilityWebthing(wt);
-        onOffProp->value().asBool(iv);
+        onOffProp->value()->asBool(iv);
         onOffProp->addListener([this, onOffProp]() { _notifyMergedChange(onOffProp); });
         this->addProperty(onOffProp, gName);
         if (gr) {
-          char* pgName = _gpios->getSubString(i, SECOND_NAME);
+          const char* pgName = _gpios->getSubString(i, SECOND_NAME);
           WProperty* groupedGpio = this->getPropertyById(pgName);
           if (groupedGpio != nullptr) {
-            if (groupedGpio->value().byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
+            if (groupedGpio->value()->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
               /*char* modeName = _gpios->getSubString(groupedGpio, SECOND_NAME);
               if (modeName != nullptr) {
                 WProperty* modeProp = this->getPropertyById(modeName);
@@ -940,8 +941,8 @@ class WEspThingIO : public WDevice {
           WPwmDimmer* pwm = new WPwmDimmer(gConfig->byteArrayValue(BYTE_GPIO));
           _configureOutput(pwm, i, gConfig, gr, mq, wt);
           // Level
-          char* gName = _gpios->getSubString(i, SECOND_NAME);
-          char* gTitle = _gpios->getSubString(i, SECOND_TITLE);
+          const char* gName = _gpios->getSubString(i, SECOND_NAME);
+          const char* gTitle = _gpios->getSubString(i, SECOND_TITLE);
           WProperty* level = WProps::createBrightnessProperty(gTitle);
           //tbi
           //SETTINGS->add(level->value(), gTitle);
@@ -966,7 +967,7 @@ class WEspThingIO : public WDevice {
     // 4. Inputs
     for (byte i = 0; i < _gpios->numberOfGPIOs()->asByte(); i++) {
       WValue* gConfig = _gpios->getGpioConfig(i);
-      char* gName = _gpios->getSubString(i, FIRST_NAME);
+      const char* gName = _gpios->getSubString(i, FIRST_NAME);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       switch (gType) {
         case GPIO_TYPE_BUTTON:
@@ -1012,7 +1013,7 @@ class WEspThingIO : public WDevice {
           // Properties
           bool mq = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_MQTT);
           bool wt = gConfig->byteArrayBitValue(BYTE_CONFIG, BIT_CONFIG_PROPERTY_WEBTHING);
-          char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
+          const char* gTitle = _gpios->getSubString(i, FIRST_TITLE);
           WProperty* temperature = WProps::createTemperatureProperty(gTitle);
           temperature->visibility(mq, wt);
           this->addProperty(temperature, gName);

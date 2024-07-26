@@ -44,7 +44,7 @@ const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 
 const static char TG_NUMBER_OF_GPIOS[] PROGMEM = "numberOfGPIOs";
 
-class WThingGpios {
+class WThingGpios : public IWIterable<WValue> {
  public: 
   WThingGpios() {
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
@@ -69,7 +69,11 @@ class WThingGpios {
     //SETTINGS->save();
   }
 
-  
+  virtual void forEach(std::function<void(WValue* gpio, const char* id)> consumer) {
+    if (consumer) {
+      for (int i = 0; i < _numberOfGPIOs->asByte(); i++) consumer(getGpioConfig(i), nullptr);
+    }
+  }
 
   WValue* getGroupedGpioByName(const char* name) {
     return getGroupedGpioBySubString(name, FIRST_NAME);
@@ -80,7 +84,7 @@ class WThingGpios {
       WValue* gConfig = getGpioConfig(i);
       byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       if (_isGpioGrouped(gType)) {
-        char* gName = getSubString(i, subStringIndex);
+        const char* gName = getSubString(i, subStringIndex);
         if ((gName != nullptr) && (strcmp(gName, name) == 0)) {
           return gConfig;
         }
@@ -95,7 +99,7 @@ class WThingGpios {
     return SETTINGS->getById(WValue::ofPattern(GPIO_DEFAULT_ID, index).asString());    
   }
 
-  char* getSubString(byte index, byte subIndex) {
+  const char* getSubString(byte index, byte subIndex) {
     WValue* p = _getSubProperty(index, subIndex);
     return (p != nullptr ? p->asString() : nullptr);
   }
@@ -105,10 +109,7 @@ class WThingGpios {
   //byte _numberOfSettings;
 
   WValue* _getSubProperty(byte index, byte subIndex) {
-    String pNumber = GPIO_DEFAULT_ID;
-    pNumber.concat(index);
-    pNumber.concat(".");
-    pNumber.concat(subIndex);
+    WValue pNumber = WValue::ofPattern(GPIO_DEFAULT_ID_SUB, index, subIndex);
     return SETTINGS->getById(pNumber.c_str());
   }
 
@@ -265,7 +266,7 @@ class WThingGpios {
         int b = -1;
         String gName = "";
         if (!gr) {
-          char* gN = getSubString(i, subIndex);
+          const char* gN = getSubString(i, subIndex);
           gName = String(gN);
           b = gName.lastIndexOf("_");
         }
