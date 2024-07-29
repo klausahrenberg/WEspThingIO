@@ -72,7 +72,7 @@ class WEspThingIO : public WDevice {
         ALL);  // this->showAsWebthingDevice->getBoolean() ? ALL : MQTT);
     // HtmlPages
     network->addCustomPage("thathing", [this](){ return new WThingPage(_gpios); }, PSTR("Configure device"));
-    network->addCustomPage("thathing", [this](){ return new WJsonPage(_gpios); }, PSTR("Json"));
+    network->addCustomPage("json", [this](){ return new WJsonPage(_gpios); }, PSTR("Json"));
     //WPage* configPage = new WPage(network, this->id(), "Configure device");
     //configPage->onPrintPage(std::bind(&WEspThingIO::_printConfigPage, this, std::placeholders::_1));
     //configPage->onSubmitPage(std::bind(&WEspThingIO::_saveConfigPage, this, std::placeholders::_1));
@@ -889,7 +889,7 @@ class WEspThingIO : public WDevice {
           WProperty* groupedGpio = this->getPropertyById(pgName);
           if (groupedGpio != nullptr) {
             if (groupedGpio->value()->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
-              /*char* modeName = _gpios->getSubString(groupedGpio, SECOND_NAME);
+              const char* modeName = _gpios->getSubString(i, SECOND_NAME);
               if (modeName != nullptr) {
                 WProperty* modeProp = this->getPropertyById(modeName);
                 if (modeProp != nullptr) {
@@ -898,7 +898,7 @@ class WEspThingIO : public WDevice {
                     modeProp->value()->asString(gTitle);
                   }
                 }
-              }*/
+              }
             }
             WMergedOutput* output = new WMergedOutput(onOffProp);
             output->on(groupedGpio);

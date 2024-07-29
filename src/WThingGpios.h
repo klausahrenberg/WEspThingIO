@@ -18,6 +18,16 @@ const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 #define GPIO_TYPE_DIMMER 8
 #define GPIO_TYPE_UNKNOWN 0xFF
 
+const static char S_GPIO_TYPE_LED[] PROGMEM = "led";
+const static char S_GPIO_TYPE_RELAY[] PROGMEM = "relay";
+const static char S_GPIO_TYPE_BUTTON[] PROGMEM = "button";
+const static char S_GPIO_TYPE_SWITCH[] PROGMEM = "switch";
+const static char S_GPIO_TYPE_MODE[] PROGMEM = "mode";
+const static char S_GPIO_TYPE_RGB_LED[] PROGMEM = "rgb";
+const static char S_GPIO_TYPE_MERGE[] PROGMEM = "merge";
+const static char S_GPIO_TYPE_TEMP_SENSOR[] PROGMEM = "temp";
+const static char S_GPIO_TYPE_DIMMER[] PROGMEM = "dimmer";
+
 #define BYTE_TYPE 0
 #define BYTE_GPIO 1
 #define BYTE_CONFIG 2
@@ -63,15 +73,17 @@ class WThingGpios : public IWIterable<WValue> {
     Serial.println(_numberOfGPIOs->asByte());
 
     _add(GPIO_TYPE_LED);
+    _add(GPIO_TYPE_BUTTON);
 
     Serial.print("numberOfGpis ");
     Serial.println(_numberOfGPIOs->asByte());
     //SETTINGS->save();
   }
 
-  virtual void forEach(std::function<void(WValue* gpio, const char* id)> consumer) {
+  typedef std::function<void(int, WValue*, const char*)> TOnIteration;
+  virtual void forEach(TOnIteration consumer) {
     if (consumer) {
-      for (int i = 0; i < _numberOfGPIOs->asByte(); i++) consumer(getGpioConfig(i), nullptr);
+      for (int i = 0; i < _numberOfGPIOs->asByte(); i++) consumer(i, getGpioConfig(i), nullptr);
     }
   }
 
@@ -102,6 +114,33 @@ class WThingGpios : public IWIterable<WValue> {
   const char* getSubString(byte index, byte subIndex) {
     WValue* p = _getSubProperty(index, subIndex);
     return (p != nullptr ? p->asString() : nullptr);
+  }
+
+  const char* getGpioDisplayName(byte gType) {    
+    switch (gType) {
+      case GPIO_TYPE_LED: return S_GPIO_TYPE_LED;
+      case GPIO_TYPE_RELAY: return "Relay";
+      case GPIO_TYPE_DIMMER: return "Dimmer";
+      case GPIO_TYPE_BUTTON: return "Button";
+      case GPIO_TYPE_SWITCH: return "Switch";
+      case GPIO_TYPE_MODE: return "On/Mode";
+      case GPIO_TYPE_MERGE: return "Merge";
+      case GPIO_TYPE_RGB_LED: return "RGB";
+      case GPIO_TYPE_TEMP_SENSOR: return "TempSens";
+      default: return "n.a.";
+    }
+  }
+
+  void toJson(Print* stream) {    
+    WJson json = WJson(stream);
+    json.beginArray();
+    forEach([this, &json](int index, WValue gConfig, const char* id) {
+      json.beginObject();
+      //json.propertyString(WC_TYPE : )
+      json.endObject();
+      json.separator();
+    });
+    json.endArray();    
   }
 
  protected:
@@ -285,6 +324,8 @@ class WThingGpios : public IWIterable<WValue> {
     }
     return baseName;
   }
+
+  
 
 };
 

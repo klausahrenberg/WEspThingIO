@@ -39,7 +39,9 @@ class WJsonPage : public WPage {
     WebControl* form = new WebForm("thathing", nullptr);
     parentNode->add(form);
     form->add(new WebLabel(_gpios->numberOfGPIOs()->toString()));
-    form->add(new WebTextArea("json", "Json Input", W_JSON_EXAMPLE));
+    form->add(new WebTextArea("json", "Json Input", [this](Print* stream){
+      _gpios->toJson(stream);
+    }));
     form->add((new WebSubmitButton(PSTR("Save configuration"))));
   }
 
@@ -49,10 +51,10 @@ class WJsonPage : public WPage {
     
     LOG->debug("list items count: %d", agpio->size());
 
-    agpio->forEach([](WValue* value, const char* key) {
+    agpio->forEach([](int index, WValue* value, const char* key) {
       LOG->debug("key '%s' / value '%s'", key, value->toString());
       if (value->type() == LIST) {
-        value->asList()->forEach([](WValue* subValue, const char* subId) {
+        value->asList()->forEach([](int index, WValue* subValue, const char* subId) {
           LOG->debug("  > subkey '%s' / subvalue '%s'", subId, subValue->toString());
         });
       }
@@ -80,9 +82,23 @@ class WThingPage : public WPage {
   virtual void createControls(WebControl* parentNode) {    
     WebControl* div = new WebControl(WC_DIV, WC_CLASS, WC_WHITE_BOX, nullptr);
     parentNode->add(div);
-    div->add((new WebTable(_gpios))->onPrintRow([this](Print* stream, WValue* item, const char* id){
+    div->add((new WebTable(_gpios))->onPrintRow([this](Print* stream, int index, WValue* gConfig, const char* id){
       //WebTable<WValue>::headerCell(stream, id);
-      WebTable<WValue>::dataCell(stream, item->toString());
+      byte aProps = gConfig->byteArrayValue(BYTE_CONFIG);
+      bool gr = bitRead(aProps, BIT_CONFIG_PROPERTY_GROUPED);
+      byte gType = gConfig->byteArrayValue(BYTE_TYPE);
+      WebTable<WValue>::dataCell(stream, WValue::ofInt(index).toString());
+      //WebTable<WValue>::dataCell(stream, _gpios->getGpioDisplayName(gType));
+      stream->print(_gpios->getGpioDisplayName(gType));
+      WHtml::command(stream, WC_TABLE_DATA, true, nullptr); 
+      if (gr) {
+        stream->print("> ");
+      }
+      const char* gName = (gr && (gType == GPIO_TYPE_MERGE) ? _gpios->getSubString(index, SECOND_NAME) : _gpios->getSubString(index, FIRST_NAME));
+      if (gName != nullptr) {
+        stream->print(gName);
+      }
+      WHtml::command(stream, WC_TABLE_DATA, false, nullptr);       
     }));
   }
 
