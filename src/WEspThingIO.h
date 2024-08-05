@@ -51,7 +51,7 @@ class WMergedOutput : public WOutput {
 
   void _updateOn() {
     WOutput::_updateOn();
-    _merged->value()->asBool(this->isOn());
+    _merged->asBool(this->isOn());
   };
 
  private:
@@ -856,7 +856,7 @@ class WEspThingIO : public WDevice {
         onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
         this->addProperty(onOffProp, gName);        
         WProperty* modeProp = WProps::createStringProperty(mTitle);
-        SETTINGS->add(modeProp->value(), mName);
+        //tbi SETTINGS->add(modeProp->value(), mName);
         modeProp->visibilityMqtt(mq);
         modeProp->visibilityWebthing(wt);
         modeProp->addListener([this, modeProp]() {
@@ -881,21 +881,21 @@ class WEspThingIO : public WDevice {
         WProperty* onOffProp = WProps::createOnOffProperty(gTitle);
         onOffProp->visibilityMqtt(mq);
         onOffProp->visibilityWebthing(wt);
-        onOffProp->value()->asBool(iv);
+        onOffProp->asBool(iv);
         onOffProp->addListener([this, onOffProp]() { _notifyMergedChange(onOffProp); });
         this->addProperty(onOffProp, gName);
         if (gr) {
           const char* pgName = _gpios->getSubString(i, SECOND_NAME);
           WProperty* groupedGpio = this->getPropertyById(pgName);
           if (groupedGpio != nullptr) {
-            if (groupedGpio->value()->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
+            if (groupedGpio->byteArrayValue(BYTE_TYPE) == GPIO_TYPE_MODE) {
               const char* modeName = _gpios->getSubString(i, SECOND_NAME);
               if (modeName != nullptr) {
                 WProperty* modeProp = this->getPropertyById(modeName);
                 if (modeProp != nullptr) {
                   modeProp->addEnumString(gTitle);
                   if (modeProp->isNull()) {
-                    modeProp->value()->asString(gTitle);
+                    modeProp->asString(gTitle);
                   }
                 }
               }

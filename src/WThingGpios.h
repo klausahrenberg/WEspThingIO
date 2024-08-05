@@ -7,16 +7,13 @@
 const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 
 #define MAX_PROP_BYTES 4
-#define GPIO_TYPE_LED 0
-#define GPIO_TYPE_RELAY 1
-#define GPIO_TYPE_BUTTON 2
-#define GPIO_TYPE_SWITCH 3
-#define GPIO_TYPE_MODE 4
-#define GPIO_TYPE_RGB_LED 5
-#define GPIO_TYPE_MERGE 6
-#define GPIO_TYPE_TEMP_SENSOR 7
-#define GPIO_TYPE_DIMMER 8
 #define GPIO_TYPE_UNKNOWN 0xFF
+
+enum WGpioType {
+  GPIO_TYPE_LED, GPIO_TYPE_RELAY, GPIO_TYPE_BUTTON, 
+  GPIO_TYPE_SWITCH, GPIO_TYPE_MODE, GPIO_TYPE_RGB_LED, 
+  GPIO_TYPE_MERGE, GPIO_TYPE_TEMP_SENSOR, GPIO_TYPE_DIMMER
+};
 
 const static char S_GPIO_TYPE_LED[] PROGMEM = "led";
 const static char S_GPIO_TYPE_RELAY[] PROGMEM = "relay";
@@ -27,6 +24,9 @@ const static char S_GPIO_TYPE_RGB_LED[] PROGMEM = "rgb";
 const static char S_GPIO_TYPE_MERGE[] PROGMEM = "merge";
 const static char S_GPIO_TYPE_TEMP_SENSOR[] PROGMEM = "temp";
 const static char S_GPIO_TYPE_DIMMER[] PROGMEM = "dimmer";
+const char* const S_GPIO_TYPE[] PROGMEM = { S_GPIO_TYPE_LED, S_GPIO_TYPE_RELAY, S_GPIO_TYPE_BUTTON, 
+                                             S_GPIO_TYPE_SWITCH, S_GPIO_TYPE_MODE, S_GPIO_TYPE_RGB_LED, 
+                                             S_GPIO_TYPE_MERGE, S_GPIO_TYPE_TEMP_SENSOR, S_GPIO_TYPE_DIMMER };
 
 #define BYTE_TYPE 0
 #define BYTE_GPIO 1
@@ -134,11 +134,27 @@ class WThingGpios : public IWIterable<WValue> {
   void toJson(Print* stream) {    
     WJson json = WJson(stream);
     json.beginArray();
-    forEach([this, &json](int index, WValue gConfig, const char* id) {
+    forEach([this, &json](int index, WValue* gConfig, const char* id) {
+
+      byte gType = gConfig->byteArrayValue(BYTE_TYPE);
+      
       json.beginObject();
-      //json.propertyString(WC_TYPE : )
+      
+      json.propertyString(WC_TYPE, S_GPIO_TYPE[gType], nullptr);
+      if (_isGpioUsingGPIO(gType)) {
+        json.propertyByte(PSTR("gpio"), gConfig->byteArrayValue(BYTE_GPIO));
+      }
+      if (_isGpioUsingSCL(gType)) {
+        json.propertyByte(PSTR("scl"), gConfig->byteArrayValue(BYTE_SCL));
+      }
+
+      for (int i = 0; i < _getNumberOfChars(gType); i++) {
+        json.propertyString(WValue::ofPattern("s_%s", "ho").asString(), "t");// _getSubProperty(index, i)->asString());
+      }
+      
+      
       json.endObject();
-      json.separator();
+      //json.separator();
     });
     json.endArray();    
   }
