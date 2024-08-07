@@ -10,7 +10,23 @@ const byte* DEFAULT_PROP_ARRAY = (const byte[]){0, 0, 0, 0};
 #define GPIO_TYPE_UNKNOWN 0xFF
 
 enum WGpioType {
-  GPIO_TYPE_LED, GPIO_TYPE_RELAY, GPIO_TYPE_BUTTON, 
+  //Mode 0..7
+
+  //Merge 8..15
+
+  //Output 16..127
+  //gpio
+
+  //sca, scl
+
+  //din, sclk, cs
+
+  //Input 128..254
+
+
+
+
+  GPIO_TYPE_LED = 0, GPIO_TYPE_RELAY = 5, GPIO_TYPE_BUTTON, 
   GPIO_TYPE_SWITCH, GPIO_TYPE_MODE, GPIO_TYPE_RGB_LED, 
   GPIO_TYPE_MERGE, GPIO_TYPE_TEMP_SENSOR, GPIO_TYPE_DIMMER
 };
@@ -59,8 +75,34 @@ class WThingGpios : public IWIterable<WValue> {
   WThingGpios() {
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     
-    
+    for (byte index = 0; index < _numberOfGPIOs->asByte(); index++) {
+      WValue pNumber = WValue::ofPattern(GPIO_DEFAULT_ID, index);
+      Serial.println(pNumber.asString());
+      WValue* gType = SETTINGS->setByteArray(pNumber.asString(), 2, (const byte[]){GPIO_TYPE_UNKNOWN, 0});
+      
+      IWStorable* storable = nullptr;
+      switch (gType->asByteArray()[0]) {
+        case GPIO_TYPE_LED : {
+          Serial.println("led gefunden");
+          storable = new WLed(NO_PIN);
+          break;
+        }  
+        default :
+          Serial.print("unknown: ");
+          Serial.println(gType->asByteArray()[0]);
+      }
 
+    }  
+
+
+
+
+
+
+
+
+    /*_numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
+    
     byte nog = _numberOfGPIOs->asByte();
     _numberOfGPIOs->asByte(0);
     for (byte i = 0; i < nog; i++) {
@@ -76,7 +118,7 @@ class WThingGpios : public IWIterable<WValue> {
     _add(GPIO_TYPE_BUTTON);
 
     Serial.print("numberOfGpis ");
-    Serial.println(_numberOfGPIOs->asByte());
+    Serial.println(_numberOfGPIOs->asByte());*/
     //SETTINGS->save();
   }
 
