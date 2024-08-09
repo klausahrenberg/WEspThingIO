@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "WNetwork.h"
-#include "WEspThingIO.h"
+#include "WThingIO.h"
 
 WNetwork *network;
 
@@ -15,7 +15,7 @@ void setup() {
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
-	network->addDevice(new WEspThingIO(network));	
+	network->addDevice(new WThingIO(network));	
 }
 
 void loop() {
