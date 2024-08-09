@@ -80,11 +80,28 @@ class WThingIO : public WDevice {
     }         
     //Configure items
     _items->forEach([this](int index, WThing* thing, const char* id) {
+      bool mq = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_MQTT);
+      bool wt = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_WEBTHING);
       switch (thing->type) {
         case GPIO_TYPE_LED : {                    
           if (thing->asLed->linkState()) { this->network()->setStatusLed(thing->asLed, false); }
           break;
         }                    
+      }      
+      if (_isOutput(thing->type)) {
+        WOutput* output = (WOutput*) thing->asLed;
+        const char* tid = thing->asLed->id();
+        WThing* linkedThing = this->_items->getById(tid);
+        if (linkedThing == nullptr) {          
+          if ((wt) || (mq)) {
+            WProperty* prop = WProps::createOnOffProperty(tid);
+            prop->visibilityMqtt(mq);
+            prop->visibilityWebthing(wt);
+
+            output->on(prop);
+            //this->addProperty(prop, tid);*/
+          }
+        }
       }
     });
   }
@@ -92,6 +109,11 @@ class WThingIO : public WDevice {
  protected:
   WValue* _numberOfGPIOs;
   WList<WThing>* _items;
+
+  bool _isOutput(byte type) {
+    //tbi
+    return true;
+  }
   
 };
 
