@@ -78,6 +78,7 @@ class WThingIO : public WDevice {
       }
       storable->loadFromStore();            
     }         
+    
     //Configure items
     _items->forEach([this](int index, WThing* thing, const char* id) {
       bool mq = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_MQTT);
@@ -99,7 +100,7 @@ class WThingIO : public WDevice {
             prop->visibilityWebthing(wt);
 
             output->on(prop);
-            //this->addProperty(prop, tid);*/
+            this->addProperty(prop, tid);
           }
         }
       }
