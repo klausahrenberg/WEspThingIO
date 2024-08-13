@@ -114,10 +114,15 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     list->forEach([this](int index, WValue* value, const char* key) {
       LOG->debug("key '%s' / value '%s'", key, value->toString());
       if (value->type() == LIST) { 
-        Serial.println("a");       
         WGpioType gType = _gpioTypeOf(value->asList()->getById(WC_TYPE));
-        Serial.println("b");
         if (gType != GPIO_TYPE_UNKNOWN) {
+          WThing* thing = new WThing();
+          thing->type = gType;
+          thing->config = 0x00;
+          bitWrite(thing->config, BIT_CONFIG_PROPERTY_WEBTHING, (value->asList()->getById(WC_WEBTHING)->asBool()));
+          bitWrite(thing->config, BIT_CONFIG_PROPERTY_MQTT, (value->asList()->getById(WC_MQTT)->asBool()));
+          _items->add(thing);
+
           LOG->debug("type is %s", S_GPIO_TYPE[gType]);
 
           value->asList()->forEach([](int index, WValue* subValue, const char* subId) {

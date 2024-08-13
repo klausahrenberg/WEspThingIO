@@ -12,7 +12,7 @@
     "gpio":2,
     "linkState":true,
     "id":"led0",
-    "webthings":true
+    "webthing":true
   }
 ]
 
@@ -25,7 +25,7 @@ const static char W_JSON_EXAMPLE[] PROGMEM = R"=====(
   'gpio':2,
   'grouped':false,
   'mqtt':true,
-  'webthings':true,
+  'webthing':true,
   'inverted':false,
   'linkState':true,
   'id':'led0',
