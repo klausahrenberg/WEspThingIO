@@ -79,6 +79,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       }
       storable->loadFromStore();            
     }         
+    
     //Configure items
     _items->forEach([this](int index, WThing* thing, const char* id) {
       bool mq = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_MQTT);
