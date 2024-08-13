@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "WNetwork.h"
 #include "WThingIO.h"
+#include "html/WThingPages.h"
 
 WNetwork *network;
 
@@ -15,7 +16,9 @@ void setup() {
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
-	network->addDevice(new WThingIO(network));	
+	WThingIO* thing = new WThingIO(network);
+	network->addDevice(thing);	
+	network->addCustomPage("json", [thing](){ return new WJsonPage(thing); }, PSTR("json"));    
 }
 
 void loop() {

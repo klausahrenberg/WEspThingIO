@@ -7,7 +7,7 @@
 #define MAX_GPIOS 12
 #define GPIO_DEFAULT_ID "^g.%d"
 #define GPIO_DEFAULT_ID_SUB GPIO_DEFAULT_ID ".%d"
-#define GPIO_TYPE_UNKNOWN 0xFF
+#define GPIO_TYPE_COUNT 9
 
 const static char TG_NUMBER_OF_GPIOS[] PROGMEM = "numberOfGPIOs";
 
@@ -18,18 +18,20 @@ enum WGpioType {
   //Input 128..254
   GPIO_TYPE_LED = 0, GPIO_TYPE_RELAY = 5, GPIO_TYPE_BUTTON, 
   GPIO_TYPE_SWITCH, GPIO_TYPE_MODE, GPIO_TYPE_RGB_LED, 
-  GPIO_TYPE_MERGE, GPIO_TYPE_TEMP_SENSOR, GPIO_TYPE_DIMMER
+  GPIO_TYPE_MERGE, GPIO_TYPE_TEMP_SENSOR, GPIO_TYPE_DIMMER,
+
+  GPIO_TYPE_UNKNOWN = 0xFF
 };
 
-const static char S_GPIO_TYPE_LED[] PROGMEM = "led";
-const static char S_GPIO_TYPE_RELAY[] PROGMEM = "relay";
-const static char S_GPIO_TYPE_BUTTON[] PROGMEM = "button";
-const static char S_GPIO_TYPE_SWITCH[] PROGMEM = "switch";
-const static char S_GPIO_TYPE_MODE[] PROGMEM = "mode";
-const static char S_GPIO_TYPE_RGB_LED[] PROGMEM = "rgb";
-const static char S_GPIO_TYPE_MERGE[] PROGMEM = "merge";
-const static char S_GPIO_TYPE_TEMP_SENSOR[] PROGMEM = "temp";
-const static char S_GPIO_TYPE_DIMMER[] PROGMEM = "dimmer";
+const char S_GPIO_TYPE_LED[] PROGMEM = "led";
+const char S_GPIO_TYPE_RELAY[] PROGMEM = "relay";
+const char S_GPIO_TYPE_BUTTON[] PROGMEM = "button";
+const char S_GPIO_TYPE_SWITCH[] PROGMEM = "switch";
+const char S_GPIO_TYPE_MODE[] PROGMEM = "mode";
+const char S_GPIO_TYPE_RGB_LED[] PROGMEM = "rgb";
+const char S_GPIO_TYPE_MERGE[] PROGMEM = "merge";
+const char S_GPIO_TYPE_TEMP_SENSOR[] PROGMEM = "temp";
+const char S_GPIO_TYPE_DIMMER[] PROGMEM = "dimmer";
 const char* const S_GPIO_TYPE[] PROGMEM = { S_GPIO_TYPE_LED, S_GPIO_TYPE_RELAY, S_GPIO_TYPE_BUTTON, 
                                              S_GPIO_TYPE_SWITCH, S_GPIO_TYPE_MODE, S_GPIO_TYPE_RGB_LED, 
                                              S_GPIO_TYPE_MERGE, S_GPIO_TYPE_TEMP_SENSOR, S_GPIO_TYPE_DIMMER };
@@ -45,11 +47,10 @@ struct WThing {
   };
 };
 
-class WThingIO : public WDevice {
+class WThingIO : public WDevice, public IWIterable<WThing> {
  public:
   WThingIO(WNetwork *network)
-      : WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH,
-                DEVICE_TYPE_LIGHT) {
+      : WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH, DEVICE_TYPE_LIGHT) {    
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     _items = new WList<WThing>();
     //Read from EEPROM
@@ -90,21 +91,84 @@ class WThingIO : public WDevice {
       }      
       if (_isOutput(thing->type)) {
         WOutput* output = (WOutput*) thing->asLed;
-        const char* tid = thing->asLed->id();
+        const char* tid = "test";//thing->asLed->id();
         WThing* linkedThing = this->_items->getById(tid);
-        if (linkedThing == nullptr) {          
+        if ((tid != nullptr) && (strcmp_P(tid, "") != 0) && (linkedThing == nullptr)) {          
           if ((wt) || (mq)) {
+            LOG->debug("add default property '%s'", tid);
             WProperty* prop = WProps::createOnOffProperty(tid);
             prop->visibilityMqtt(mq);
             prop->visibilityWebthing(wt);
-
             output->on(prop);
-            //this->addProperty(prop, tid);*/
+            this->addProperty(prop, tid);
           }
         }
       }
     });
   }
+
+  virtual WFormResponse* loadFromJson(WList<WValue>* list) {          
+    LOG->debug("list items count: %d", list->size());
+    //_gpios->clear();
+    list->forEach([this](int index, WValue* value, const char* key) {
+      LOG->debug("key '%s' / value '%s'", key, value->toString());
+      if (value->type() == LIST) { 
+        Serial.println("a");       
+        WGpioType gType = _gpioTypeOf(value->asList()->getById(WC_TYPE));
+        Serial.println("b");
+        if (gType != GPIO_TYPE_UNKNOWN) {
+          LOG->debug("type is %s", S_GPIO_TYPE[gType]);
+
+          value->asList()->forEach([](int index, WValue* subValue, const char* subId) {
+            LOG->debug(" >> subkey '%s' / subvalue '%s'", subId, subValue->toString());
+
+          });
+        } else {
+          LOG->debug("no type found");
+        }
+        Serial.println("c");
+      }
+    });
+    //_addLed(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle, bool linkState)
+    return new WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
+  }  
+
+  typedef std::function<void(int, WThing*, const char*)> TOnIteration;
+  virtual void forEach(TOnIteration consumer) {
+    if (consumer) {
+      for (int i = 0; i < _numberOfGPIOs->asByte(); i++) consumer(i, _items->get(i), nullptr);
+    }
+  }
+
+  void toJson(Print* stream) {    
+    WJson json = WJson(stream);
+    json.beginArray();
+    _items->forEach([this, &json](int index, WThing* thing, const char* id) {
+
+      /*byte gType = gConfig->byteArrayValue(BYTE_TYPE);
+      
+      json.beginObject();
+      
+      json.propertyString(WC_TYPE, S_GPIO_TYPE[gType], nullptr);
+      if (_isGpioUsingGPIO(gType)) {
+        json.propertyByte(PSTR("gpio"), gConfig->byteArrayValue(BYTE_GPIO));
+      }
+      if (_isGpioUsingSCL(gType)) {
+        json.propertyByte(PSTR("scl"), gConfig->byteArrayValue(BYTE_SCL));
+      }
+
+      for (int i = 0; i < _getNumberOfChars(gType); i++) {
+        json.propertyString(WValue::ofPattern("s_%s", "ho").asString(), "t");// _getSubProperty(index, i)->asString());
+      }
+      
+      
+      json.endObject();*/
+      //json.separator();
+    });
+    json.endArray();    
+  }
+
+  WValue* numberOfGPIOs() { return _numberOfGPIOs; }
 
  protected:
   WValue* _numberOfGPIOs;
@@ -113,6 +177,17 @@ class WThingIO : public WDevice {
   bool _isOutput(byte type) {
     //tbi
     return true;
+  }
+
+  WGpioType _gpioTypeOf(WValue* jType) {    
+    if (jType != nullptr) {
+      for (byte b = 0; b < GPIO_TYPE_COUNT; b++) {      
+        if (jType->equalsString(S_GPIO_TYPE[b])) {        
+          return (WGpioType) b;
+        }
+      }
+    }
+    return GPIO_TYPE_UNKNOWN;
   }
   
 };
