@@ -119,9 +119,27 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
           WThing* thing = new WThing();
           thing->type = gType;
           thing->config = 0x00;
-          bitWrite(thing->config, BIT_CONFIG_PROPERTY_WEBTHING, (value->asList()->getById(WC_WEBTHING)->asBool()));
-          bitWrite(thing->config, BIT_CONFIG_PROPERTY_MQTT, (value->asList()->getById(WC_MQTT)->asBool()));
+          WValue* wt = value->asList()->getById(WC_WEBTHING);
+          bitWrite(thing->config, BIT_CONFIG_PROPERTY_WEBTHING, (wt != nullptr ? wt->asBool() : true));
+          Serial.println("b");
+          WValue* mq = value->asList()->getById(WC_MQTT);
+          bitWrite(thing->config, BIT_CONFIG_PROPERTY_MQTT, (mq != nullptr ? mq->asBool() : true));
+          Serial.println("c");
           _items->add(thing);
+          IWJsonable* jsonable = nullptr;
+          switch (thing->type) {
+            case GPIO_TYPE_LED : {
+              Serial.println("led gefunden");
+              thing->asLed = new WLed(NO_PIN);          
+              this->addOutput(thing->asLed);
+              jsonable = thing->asLed;
+              break;
+            }  
+            default :
+              Serial.print("unknown: ");
+              Serial.println();
+          }
+          jsonable->loadFromJson(value->asList());  
 
           LOG->debug("type is %s", S_GPIO_TYPE[gType]);
 
