@@ -80,7 +80,7 @@ class WThingPage : public WPage {
   virtual void createControls(WebControl* parentNode) {    
     WebControl* div = new WebControl(WC_DIV, WC_CLASS, WC_WHITE_BOX, nullptr);
     parentNode->add(div);
-    div->add((new WebTable(_gpios))->onPrintRow([this](Print* stream, int index, WThing* thing, const char* id){
+    //div->add((new WebTable(_gpios))->onPrintRow([this](Print* stream, int index, WThing* thing, const char* id){
       /*
       //WebTable<WValue>::headerCell(stream, id);
       byte aProps = gConfig->byteArrayValue(BYTE_CONFIG);
@@ -98,7 +98,7 @@ class WThingPage : public WPage {
         stream->print(gName);
       }
       WHtml::command(stream, WC_TABLE_DATA, false, nullptr);       */
-    }));
+    //}));
   }
 
   /*virtual void _printConfigPage(WPage* page) {
