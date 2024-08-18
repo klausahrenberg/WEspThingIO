@@ -90,7 +90,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   }
 
   virtual void loadFromStore() { 
-    //SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
+    SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     _items->clear();
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     //Read from EEPROM
@@ -148,7 +148,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
 
   virtual WFormResponse* loadFromJson(WList<WValue>* list) {          
     LOG->debug("list items count: %d", list->size());
-    //SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
+    SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     _items->clear();
     _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     
