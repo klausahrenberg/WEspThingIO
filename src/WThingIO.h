@@ -56,6 +56,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   WThingIO(WNetwork *network)
       : WDevice(network, DEVICE_ID, DEVICE_ID, DEVICE_TYPE_ON_OFF_SWITCH, DEVICE_TYPE_LIGHT) {        
     _items = new WList<WThing>();
+    SETTINGS->add(_numberOfGPIOs, TG_NUMBER_OF_GPIOS);
     loadFromStore();       
     
     //Configure items
@@ -92,10 +93,10 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   virtual void loadFromStore() { 
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     _items->clear();
-    _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
+    //_numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     //Read from EEPROM
     for (byte index = 0; index < _numberOfGPIOs->asByte(); index++) {
-      _loadThing();
+      _loadThing(index);
     }
     LOG->debug(F("Loaded %d items from EEPROM. (%d)"), _items->size(), _numberOfGPIOs->asByte());
   }
@@ -104,7 +105,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     SETTINGS->save();
   }
 
-  void _loadThing(WList<WValue>* list = nullptr) {    
+  void _loadThing(int index, WList<WValue>* list = nullptr) {    
     WThing* thing = new WThing();
     //type
     WValue* gType = SETTINGS->setByte(nullptr, GPIO_TYPE_UNKNOWN);
@@ -125,7 +126,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       _items->add(thing);
 
       IWStorable* storable = nullptr;
-      IWJsonable* jsonable = nullptr;
       switch (thing->type) {
         case GPIO_TYPE_LED : {
           Serial.println("led gefunden");
@@ -150,17 +150,23 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     LOG->debug("list items count: %d", list->size());
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     _items->clear();
-    _numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
-    
-    list->forEach([this](int index, WValue* value, const char* key) {
-      LOG->debug("key '%s' / value '%s'", key, value->toString());
+    _numberOfGPIOs->asByte(0);
+    //_numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
+    int index = 0;
+    for (int i = 0; i < list->size(); i++) {
+      WValue* value = list->get(i);
       if (value->type() == LIST) { 
-        _loadThing(value->asList());       
+        Serial.println("load thing json before");
+        _loadThing(index, value->asList());
+        Serial.println("load thing json after");
+        index++;       
       }
-    });
+    }
     _numberOfGPIOs->asByte(_items->size());
-    LOG->debug(F("Loaded %d items from json"), _items->size());
+    LOG->debug(F("Loaded %d / %d items from json"), _items->size(), _numberOfGPIOs->asByte());
     SETTINGS->save();
+    LOG->debug(F("Saved %d / %d to EEPROM"), _items->size(), _numberOfGPIOs->asByte());
+    
     //_addLed(byte gpio, bool gr, bool mqtt, bool webthing, bool inverted, String oName, String oTitle, bool linkState)
     return new WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
   } 
@@ -177,7 +183,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     json->beginArray();
     _items->forEach([this, json](int index, WThing* thing, const char* id) {
       json->beginObject();
-      json->propertyByte(WC_TYPE, thing->type);
       json->propertyString(WC_TYPE, S_GPIO_TYPE[thing->type], nullptr);
       
       thing->jsonable->toJson(json);
@@ -210,7 +215,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   WValue* numberOfGPIOs() { return _numberOfGPIOs; }
 
  protected:
-  WValue* _numberOfGPIOs;
+  WValue* _numberOfGPIOs = new WValue((byte) 0);
   WList<WThing>* _items;
 
 
