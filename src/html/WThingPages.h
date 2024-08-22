@@ -8,9 +8,11 @@
 /*
 [
   {
+    "webthing":false,
+    "mqtt":false,
     "type":"led",
     "gpio":2,
-    "linkState":true,
+    "linkstate":true,
     "id":"led0",
     "webthing":true
   }

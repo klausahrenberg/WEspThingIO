@@ -41,7 +41,7 @@ const char* const S_GPIO_TYPE[] PROGMEM = { S_GPIO_TYPE_MODE, S_GPIO_TYPE_MERGE,
 
 struct WThing { 
   WGpioType type;
-  byte config;
+  WValue* config;
   //bool _isNull = true;
   //const char* _toString = nullptr;
   //union {
@@ -61,18 +61,21 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     
     //Configure items
     _items->forEach([this](int index, WThing* thing, const char* id) {
-      bool mq = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_MQTT);
-      bool wt = true;// bitRead(thing->config, BIT_CONFIG_PROPERTY_WEBTHING);
+      bool mq = thing->config->asBit(BIT_CONFIG_PROPERTY_MQTT);
+      bool wt = thing->config->asBit(BIT_CONFIG_PROPERTY_WEBTHING);
       switch (thing->type) {
         case GPIO_TYPE_LED : {        
           WLed* led = (WLed*) thing->jsonable;            
-          if (led->linkState()) { this->network()->setStatusLed(led, false); }
+          if (led->linkState()) { 
+            Serial.println("yepp linkstate");
+            this->network()->setStatusLed(led, false); 
+          }
           break;
         }                    
       }      
       if (_isOutput(thing->type)) {
         WOutput* output = (WOutput*) thing->jsonable;
-        const char* tid = "test";//thing->asLed->id();
+        const char* tid = output->id();
         WThing* linkedThing = this->_items->getById(tid);
         if ((tid != nullptr) && (strcmp_P(tid, "") != 0) && (linkedThing == nullptr)) {          
           if ((wt) || (mq)) {
@@ -93,7 +96,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   virtual void loadFromStore() { 
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     _items->clear();
-    //_numberOfGPIOs = SETTINGS->setByte(TG_NUMBER_OF_GPIOS, 0, MAX_GPIOS);
     //Read from EEPROM
     for (byte index = 0; index < _numberOfGPIOs->asByte(); index++) {
       _loadThing(index);
@@ -111,17 +113,19 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     WValue* gType = SETTINGS->setByte(nullptr, GPIO_TYPE_UNKNOWN);
     thing->type = (list == nullptr ? (WGpioType) gType->asByte() : _gpioTypeOf(list->getById(WC_TYPE)));
     gType->asByte(thing->type);
-    //config byte
-    WValue* config = SETTINGS->setByte(nullptr, 0b00000011);    
-    thing->config = config->asByte();
+    //config byte    
+    thing->config = new WValue((byte) 0b00000011);
+    SETTINGS->add(thing->config, nullptr);    
     //json
     WValue* wt = (list != nullptr ? list->getById(WC_WEBTHING) : nullptr);
-    bitWrite(thing->config, BIT_CONFIG_PROPERTY_WEBTHING, (wt != nullptr ? wt->asBool() : true));      
+    thing->config->asBit(BIT_CONFIG_PROPERTY_WEBTHING, (wt != nullptr ? wt->asBool() : true));      
+    //bitWrite(thing->config, BIT_CONFIG_PROPERTY_WEBTHING, (wt != nullptr ? wt->asBool() : true));      
     Serial.println(".c");
     WValue* mq = (list != nullptr ? list->getById(WC_MQTT) : nullptr);
-    bitWrite(thing->config, BIT_CONFIG_PROPERTY_MQTT, (mq != nullptr ? mq->asBool() : true));
-    Serial.println(".d");
-    config->asByte(thing->config);
+    thing->config->asBit(BIT_CONFIG_PROPERTY_MQTT, (mq != nullptr ? mq->asBool() : true));
+    //bitWrite(thing->config, BIT_CONFIG_PROPERTY_MQTT, (mq != nullptr ? mq->asBool() : true));
+    Serial.println(thing->config->asByte());
+    Serial.println(".d ");
     if (thing->type != GPIO_TYPE_UNKNOWN) {
       _items->add(thing);
 
@@ -184,6 +188,8 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     _items->forEach([this, json](int index, WThing* thing, const char* id) {
       json->beginObject();
       json->propertyString(WC_TYPE, S_GPIO_TYPE[thing->type], nullptr);
+      json->propertyBoolean(WC_WEBTHING, thing->config->asBit(BIT_CONFIG_PROPERTY_WEBTHING));
+      json->propertyBoolean(WC_MQTT, thing->config->asBit(BIT_CONFIG_PROPERTY_MQTT));
       
       thing->jsonable->toJson(json);
       json->endObject();
