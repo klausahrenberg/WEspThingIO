@@ -8,6 +8,59 @@
 /*
 [
   {
+    "type":"group",
+    "title":"Schalter",
+    "items":[
+      {
+        "type":"led",
+        "gpio":22,
+      },
+      {
+        "type":"relay",
+        "gpio":24,
+      }
+    ]
+  },
+  {
+    "type":"led",
+    "gpio":2,
+    "linkstate":true,
+  }
+]
+
+
+[
+  {
+    "type":"group",
+    "title":"Schalter",
+    "items":{
+      "LED":{
+        "type":"led",
+        "gpio":22,
+      },
+      "Relay":{
+        "type":"relay",
+        "gpio":24,
+      }
+    }
+  },
+  {
+    "type":"led",
+    "gpio":2,
+    "linkstate":true,
+  }
+]
+
+[
+  {
+    "type":"led",
+    "gpio":2,
+    "linkstate":true,
+  }
+]
+
+[
+  {
     "webthing":false,
     "mqtt":false,
     "type":"led",
@@ -23,21 +76,10 @@
 const static char W_JSON_EXAMPLE[] PROGMEM = R"=====(
 [
  {
-  'type':'led',
-  'gpio':2,
-  'grouped':false,
-  'mqtt':true,
-  'webthing':true,
-  'inverted':false,
-  'linkState':true,
-  'id':'led0',
-  'title':'LED onboard',
- },
- {
   'type':'button',
   'gpio':4,
   'switchDirect':'led0',
- },
+ }
 ]
 )====="; 
 
@@ -64,7 +106,7 @@ class WJsonPage : public WPage {
   virtual WFormResponse* submitForm(WList<WValue>* args) {  
     LOG->debug("handle submitform: %s", args->getById("json")->toString());
     _gpios->loadFromJson(WJsonParser::asMap(args->getById("json")->asString()));
-    return new WFormResponse(FO_RESTART, PSTR("submit ThingPage"));
+    return new WFormResponse(FO_RESTART);
   }  
 
  protected:
