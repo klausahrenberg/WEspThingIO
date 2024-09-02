@@ -270,6 +270,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
                 //tbi
                 WValue* list = json->getById(WC_ITEMS);
                 if (list->type() == LIST) {
+                  LOG->debug(F("Loaded childs for parent index %d, has %d subitems"), pIndex, list->asList()->size());
                   childCount->asByte(_loadThing(list->asList(), pIndex));
                   LOG->debug(F("Loaded %d childs"), childCount->asByte());
                 }

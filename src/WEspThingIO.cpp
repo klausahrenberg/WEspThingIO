@@ -14,19 +14,14 @@ void setup() {
 	FLAG_SETTINGS = 0x48;
 	DEBUG = true;
 	//Network
-	//network = new WNetwork(NO_LED);
+	network = new WNetwork(NO_LED);
 	//Device
-	//WThingIO* thing = new WThingIO(network);
-	//network->addDevice(thing);	
-	//network->addCustomPage("json", [thing](){ return new WJsonPage(thing); }, PSTR("json"));
-
-	LOG->setOutput(&Serial, LOG_LEVEL_NOTICE, true, true);
-	delay(2000);
-	WJsonParser::asMap("{'LED':{'type':'led'}}");
-	LOG->debug("Parsing finished.");
+	WThingIO* thing = new WThingIO(network);
+	network->addDevice(thing);	
+	network->addCustomPage("json", [thing](){ return new WJsonPage(thing); }, PSTR("json"));	
 }
 
 void loop() {
-  //network->loop(millis());	
+  network->loop(millis());	
 	delay(50);
 }
