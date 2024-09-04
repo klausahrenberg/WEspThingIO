@@ -8,24 +8,24 @@
 /*
 [
   {
-    "type":"group",
-    "title":"Schalter",
-    "items":[
-      {
-        "type":"led",
-        "gpio":22,
-      },
-      {
-        "type":"relay",
-        "gpio":24,
-      }
-    ]
-  },
-  {
     "type":"led",
     "gpio":2,
     "linkstate":true,
-  }
+  },
+  {
+    "type":"group",
+    "title":"Schalter",
+    "items":{
+      "a":{
+        "type":"led",
+        "gpio":22,
+      },
+      "b":{
+        "type":"relay",
+        "gpio":24,
+      }
+    }
+  },
 ]
 
 
