@@ -356,6 +356,25 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         Serial.println("_configureDevice h");
       }
     });
+    //2. Mode
+    _items->forEach([this](int index, WThing* thing, const char* id) {
+      if (thing->type == GPIO_TYPE_MODE) {
+        WMode* mode = (WMode*) thing->jsonable;
+        WProperty* onOffProp = WProps::createOnOffProperty(mode->title()->asString());
+        onOffProp->visibilityMqtt(!mode->id()->isStringEmpty());
+        onOffProp->visibilityWebthing(!mode->title()->isStringEmpty());
+        onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
+        this->addProperty(onOffProp, mode()->id()->asString());        
+        WProperty* modeProp = WProps::createStringProperty(mTitle);
+        //tbi SETTINGS->add(modeProp->value(), mName);
+        modeProp->visibilityMqtt(mq);
+        modeProp->visibilityWebthing(wt);
+        modeProp->addListener([this, modeProp]() {
+          _notifyGroupedChange(modeProp, SECOND_NAME);
+        });
+        this->addProperty(modeProp, mName);
+      }
+    });  
     Serial.println("_configureDevice i");
     
   }
