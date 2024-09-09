@@ -9,6 +9,27 @@
 [
   {
     "type":"led",
+    "gpio":0,
+    "linkstate":true
+  },
+  {
+    "type":"group",
+    "id":"relay0",
+    "title":"Relay",
+    "items":[      
+      {
+        "type":"relay",
+        "gpio":32,
+        "inverted":true
+      }
+    ]
+  },
+]
+
+
+[
+  {
+    "type":"led",
     "gpio":2,
     "linkstate":true,
   },
@@ -105,7 +126,7 @@ class WJsonPage : public WPage {
 
   virtual WFormResponse* submitForm(WList<WValue>* args) {  
     LOG->debug("handle submitform: %s", args->getById("json")->toString());
-    _gpios->loadFromJson(WJsonParser::asMap(args->getById("json")->asString()));
+    _gpios->loadFromJson(WJsonParser::asMap(args->getById("json")->asString()));    
     return new WFormResponse(FO_RESTART);
   }  
 

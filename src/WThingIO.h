@@ -22,42 +22,13 @@ const static char TG_MODE[] PROGMEM = "mode";
 const static char TG_NUMBER_OF_GPIOS[] PROGMEM = "numberOfGPIOs";
 const static char TG_WEBTHING[] PROGMEM = "webthing";
 
-
-enum WGpioType {
-  //Group  
-  GPIO_TYPE_GROUP,
-  //Mode
-  GPIO_TYPE_MODE,
-  //Outputs
-  GPIO_TYPE_LED, GPIO_TYPE_RELAY,
-  GPIO_TYPE_RGB_LED, GPIO_TYPE_DIMMER,
-  //Inputs
-  GPIO_TYPE_BUTTON, GPIO_TYPE_SWITCH,  
-  GPIO_TYPE_TEMP_SENSOR,
-  //NONE
-  GPIO_TYPE_UNKNOWN = 0xFF
-};
-
-const char S_GPIO_TYPE_LED[] PROGMEM = "led";
-const char S_GPIO_TYPE_RELAY[] PROGMEM = "relay";
-const char S_GPIO_TYPE_BUTTON[] PROGMEM = "button";
-const char S_GPIO_TYPE_SWITCH[] PROGMEM = "switch";
-const char S_GPIO_TYPE_MODE[] PROGMEM = "mode";
-const char S_GPIO_TYPE_RGB_LED[] PROGMEM = "rgb";
-const char S_GPIO_TYPE_GROUP[] PROGMEM = "group";
-const char S_GPIO_TYPE_TEMP_SENSOR[] PROGMEM = "temp";
-const char S_GPIO_TYPE_DIMMER[] PROGMEM = "dimmer";
-const char* const S_GPIO_TYPE[] PROGMEM = { S_GPIO_TYPE_GROUP, S_GPIO_TYPE_MODE,
-                                            S_GPIO_TYPE_LED, S_GPIO_TYPE_RELAY, S_GPIO_TYPE_RGB_LED, S_GPIO_TYPE_DIMMER, 
-                                            S_GPIO_TYPE_BUTTON, S_GPIO_TYPE_SWITCH, S_GPIO_TYPE_TEMP_SENSOR };
-
 struct WThing { 
   WValue* parent;
-  WGpioType type;
-  IWJsonable* jsonable;
+  WOutput* gpio;
   virtual ~WThing() {
     if (parent) delete parent;
-    if (jsonable) delete jsonable;
+    //check: if released here, it will crash because will be released twice at clearInputOutputs
+    //if (gpio) delete gpio;
   }
 };
 
@@ -82,8 +53,8 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     WJson* json = new WJson(stream);
     json->beginArray();
     _items->forEach([this, json](int index, WThing* thing, const char* id) {
-      json->beginObject();
-      json->propertyString(WC_TYPE, S_GPIO_TYPE[thing->type], nullptr);
+      if ((thing->parent == nullptr) || (thing->parent->asByte() == NO_PARENT)) {
+        json->beginObject();        
       /*if (thing->id) json->propertyString(WC_ID, thing->id->asString(), nullptr);
       if (thing->title) json->propertyString(TG_WEBTHING, thing->title->asString(), nullptr);
       if (thing->group) json->propertyString(TG_GROUP, thing->group->asString(), nullptr);
@@ -93,8 +64,9 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       //json->propertyBoolean(TG_WEBTHING, thing->config->asBit(BIT_CONFIG_WEBTHING));
       //json->propertyBoolean(WC_MQTT, thing->config->asBit(BIT_CONFIG_ID));
       
-      thing->jsonable->toJson(json);
-      json->endObject();
+        thing->gpio->toJson(json);
+        json->endObject();
+      }
 
       /*byte gType = gConfig->byteArrayValue(BYTE_TYPE);
       
@@ -123,7 +95,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   WValue* numberOfGPIOs() { return _numberOfGPIOs; }
 
   virtual WFormResponse* loadFromJson(WList<WValue>* list) {
-    _resetDevice();          
+    _resetDevice();     
     _numberOfGPIOs->asByte(0);
     for (int i = 0; i < list->size(); i++) {
       WValue* value = list->get(i);
@@ -138,10 +110,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
  protected:
   WValue* _numberOfGPIOs = new WValue((byte) 0);
   WList<WThing>* _items;
-
-
-  bool _isOutput(byte type) { return ((type >= GPIO_TYPE_LED) && (type < GPIO_TYPE_BUTTON)); }
-  bool _isInput(byte type) { return ((type >= GPIO_TYPE_BUTTON) && (type < GPIO_TYPE_UNKNOWN)); }
 
   WGpioType _gpioTypeOf(WValue* jType) {    
     if (jType != nullptr) {
@@ -164,6 +132,19 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     LOG->debug(F("Loaded %d items from EEPROM. (%d, first level: %d)"), _items->size(), _numberOfGPIOs->asByte(), index);
   }
 
+  WOutput* _loadGpio(WGpioType type) {
+    switch (type) {
+      case GPIO_TYPE_LED : return new WLed();
+      case GPIO_TYPE_RELAY: return new WRelay(NO_PIN);
+      case GPIO_TYPE_RGB_LED: return new W2812Led(NO_PIN, 22);//gConfig->byteArrayValue(BYTE_NO_OF_LEDS));
+      case GPIO_TYPE_MODE: return new WMode();
+      case GPIO_TYPE_GROUP: return new WGroup();
+      default :
+        LOG->debug(F("create group"));
+        return nullptr;
+      }
+  }
+
   bool _loadThing(WList<WValue>* json, byte parent) {    
     byte result = false;
     WThing* thing = new WThing();
@@ -173,8 +154,8 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     if (gParent->asByte() == parent) {*/
       //type
       WValue* gType = new WValue((byte) GPIO_TYPE_UNKNOWN);
-      SETTINGS->add(gType, nullptr);
-      thing->type = (json == nullptr ? (WGpioType) gType->asByte() : _gpioTypeOf(json->getById(WC_TYPE)));
+      SETTINGS->add(gType, nullptr);      
+      WGpioType type = (json == nullptr ? (WGpioType) gType->asByte() : _gpioTypeOf(json->getById(WC_TYPE)));
       if (json != nullptr) {
         
         json->forEach([](int index, WValue* item, const char* id) {
@@ -185,10 +166,10 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         });
         //Serial.println(json->getById(WC_TYPE)->asString());
       }
-      gType->asByte(thing->type);
-      LOG->debug(F("type is '%s'"), S_GPIO_TYPE[thing->type]);
+      gType->asByte(type);
+      LOG->debug(F("type is '%s'"), S_GPIO_TYPE[type]);
       WValue* childCount = nullptr;
-      if ((thing->type == GPIO_TYPE_GROUP) || (thing->type == GPIO_TYPE_MODE)) {
+      if ((type == GPIO_TYPE_GROUP) || (type == GPIO_TYPE_MODE)) {
         childCount = new WValue(BYTE);
         SETTINGS->add(childCount, nullptr);
         /*if (json != nullptr) {
@@ -206,59 +187,27 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       }
     
       Serial.println(".d ");
-      if (thing->type != GPIO_TYPE_UNKNOWN) {
-      
-        switch (thing->type) {
-          case GPIO_TYPE_LED : {
-            LOG->debug(F("create led"));
-            WLed* led = new WLed(NO_PIN);
-            thing->jsonable = led;          
-            this->addOutput(led);
-            break;
-          }  
-          case GPIO_TYPE_RELAY: {
-            LOG->debug(F("create relay"));
-            WRelay* relay = new WRelay(NO_PIN);
-            thing->jsonable = relay;
-            this->addOutput(relay);
-            break;
-          }
-          case GPIO_TYPE_RGB_LED: {
-            LOG->debug(F("create RGB led"));
-            W2812Led* ledStrip = new W2812Led(NO_PIN, 22);//gConfig->byteArrayValue(BYTE_NO_OF_LEDS));
-            //_configureOutput(ledStrip, i, gConfig, gr, mq, wt);
-            thing->jsonable = ledStrip;
-            break;
-          }
-          case GPIO_TYPE_MODE: {
-            LOG->debug(F("create mode"));
-            WMode* mode = new WMode();
-            thing->jsonable = mode;
-            break;
-          }
-
-          case GPIO_TYPE_GROUP: {
-            LOG->debug(F("create group"));
-            WGroup* group = new WGroup();
-            thing->jsonable = group;
-            break;
-          }
-          default :
-            Serial.print("unknown: ");
-            Serial.println(thing->type);
-        }
-
-        if (thing->jsonable != nullptr) {
-          thing->jsonable->registerSettings();
-          if (json != nullptr) thing->jsonable->fromJson(json);
+      if (type != GPIO_TYPE_UNKNOWN) {
+        thing->gpio = _loadGpio(type);        
+        if (thing->gpio != nullptr) {
+          thing->gpio->registerSettings();
+          if (json != nullptr) thing->gpio->fromJson(json);
           _items->add(thing);
-          if ((parent != NO_PARENT) && (_isOutput(thing->type))) {
+          Serial.println("add....");
+          Serial.println(parent != NO_PARENT);
+          Serial.println(thing->gpio->isOutput());
+          Serial.println(type);
+          if ((parent != NO_PARENT) && (thing->gpio->isOutput())) {
             WThing* p = _items->get(parent);
-            if (p->type == GPIO_TYPE_GROUP) {
-              ((WGroup*) p)->addItem((WOutput*) thing, nullptr);
-            } else if (p->type == GPIO_TYPE_MODE) {
-              ((WMode*) p)->addItem((WOutput*) thing, "tbi");
-            }  
+            if (p->gpio->type() == GPIO_TYPE_GROUP) {
+              Serial.println(" is group");
+              ((WGroup*) p->gpio)->addItem((WOutput*) thing->gpio, nullptr);
+            } else if (p->gpio->type() == GPIO_TYPE_MODE) {
+              Serial.println("is mode");
+              ((WMode*) p->gpio)->addItem((WOutput*) thing->gpio, "tbi");
+            } else {
+              Serial.println(" is mist");
+            }
           }
           result = true;
           if (childCount != nullptr) {
@@ -307,7 +256,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     network()->setStatusLed(nullptr);
     _items->clear();
-    this->clearInAndOutputs();
+    this->clearInAndOutputs();    
   }
 
   void _configureDevice() {
@@ -315,17 +264,17 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     //Configure items
     //1. Modes
     _items->forEach([this](int index, WThing* thing, const char* id) {
-      if (thing->type == GPIO_TYPE_MODE) {
+      if (thing->gpio->type() == GPIO_TYPE_MODE) {
 
       }
     });  
     Serial.println("_configureDevice b");
     _items->forEach([this](int index, WThing* thing, const char* id) {
       //Special handling, link led, config button, etc.
-      switch (thing->type) {
+      switch (thing->gpio->type()) {
         case GPIO_TYPE_LED : {        
           Serial.println("_configureDevice c");
-          WLed* led = (WLed*) thing->jsonable;            
+          WLed* led = (WLed*) thing->gpio;            
           if (led->linkState()) { 
             Serial.println("yepp linkstate");
             this->network()->setStatusLed(led); 
@@ -335,9 +284,9 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         }                    
       }
       //check outputs for creating properties etc.
-      if (_isOutput(thing->type)) {
+      if (thing->gpio->isOutput()) {
         Serial.println("_configureDevice e");
-        WOutput* output = (WOutput*) thing->jsonable;
+        WOutput* output = (WOutput*) thing->gpio;
         Serial.println("_configureDevice f");
         
         /*WThing* linkedThing = this->_items->getById(thing->id != nullptr ? thing->id->asString() : nullptr);
@@ -358,21 +307,26 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     });
     //2. Mode
     _items->forEach([this](int index, WThing* thing, const char* id) {
-      if (thing->type == GPIO_TYPE_MODE) {
-        WMode* mode = (WMode*) thing->jsonable;
-        WProperty* onOffProp = WProps::createOnOffProperty(mode->title()->asString());
-        onOffProp->visibilityMqtt(!mode->id()->isStringEmpty());
-        onOffProp->visibilityWebthing(!mode->title()->isStringEmpty());
-        onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
-        this->addProperty(onOffProp, mode()->id()->asString());        
-        WProperty* modeProp = WProps::createStringProperty(mTitle);
-        //tbi SETTINGS->add(modeProp->value(), mName);
-        modeProp->visibilityMqtt(mq);
-        modeProp->visibilityWebthing(wt);
-        modeProp->addListener([this, modeProp]() {
-          _notifyGroupedChange(modeProp, SECOND_NAME);
-        });
-        this->addProperty(modeProp, mName);
+      if (thing->gpio->isGroupOrMode()) {
+        Serial.println("create group property");
+        WGroup* group = (WGroup*) thing->gpio;        
+        WProperty* onOffProp = WProps::createOnOffProperty(group->title()->asString());
+        onOffProp->visibilityMqtt(!group->id()->isStringEmpty());
+        onOffProp->visibilityWebthing(!group->title()->isStringEmpty());
+        //onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
+        group->on(onOffProp);
+        
+        this->addProperty(onOffProp, group->id()->asString());        
+
+        if (thing->gpio->type() == GPIO_TYPE_MODE) {
+          WMode* mode = (WMode*) thing->gpio;
+          WProperty* modeProp = WProps::createStringProperty(mode->modeTitle()->asString());
+          //tbi SETTINGS->add(modeProp->value(), mName);
+          modeProp->visibilityMqtt(!mode->modeId()->isStringEmpty());
+          modeProp->visibilityWebthing(!mode->modeTitle()->isStringEmpty());
+          //modeProp->addListener([this, modeProp]() { _notifyGroupedChange(modeProp, SECOND_NAME); });
+          this->addProperty(modeProp, mode->modeId()->asString());
+        }
       }
     });  
     Serial.println("_configureDevice i");
