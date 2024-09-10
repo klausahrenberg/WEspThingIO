@@ -23,10 +23,9 @@ const static char TG_NUMBER_OF_GPIOS[] PROGMEM = "numberOfGPIOs";
 const static char TG_WEBTHING[] PROGMEM = "webthing";
 
 struct WThing { 
-  WValue* parent;
-  WOutput* gpio;
+  byte parent;
+  WGpio* gpio;
   virtual ~WThing() {
-    if (parent) delete parent;
     //check: if released here, it will crash because will be released twice at clearInputOutputs
     //if (gpio) delete gpio;
   }
@@ -53,40 +52,11 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     WJson* json = new WJson(stream);
     json->beginArray();
     _items->forEach([this, json](int index, WThing* thing, const char* id) {
-      if ((thing->parent == nullptr) || (thing->parent->asByte() == NO_PARENT)) {
+      if (thing->parent == NO_PARENT) {
         json->beginObject();        
-      /*if (thing->id) json->propertyString(WC_ID, thing->id->asString(), nullptr);
-      if (thing->title) json->propertyString(TG_WEBTHING, thing->title->asString(), nullptr);
-      if (thing->group) json->propertyString(TG_GROUP, thing->group->asString(), nullptr);
-      if (thing->mode) json->propertyString(TG_MODE, thing->mode->asString(), nullptr);
-      */
-      
-      //json->propertyBoolean(TG_WEBTHING, thing->config->asBit(BIT_CONFIG_WEBTHING));
-      //json->propertyBoolean(WC_MQTT, thing->config->asBit(BIT_CONFIG_ID));
-      
         thing->gpio->toJson(json);
         json->endObject();
       }
-
-      /*byte gType = gConfig->byteArrayValue(BYTE_TYPE);
-      
-      json.beginObject();
-      
-      json.propertyString(WC_TYPE, S_GPIO_TYPE[gType], nullptr);
-      if (_isGpioUsingGPIO(gType)) {
-        json.propertyByte(PSTR("gpio"), gConfig->byteArrayValue(BYTE_GPIO));
-      }
-      if (_isGpioUsingSCL(gType)) {
-        json.propertyByte(PSTR("scl"), gConfig->byteArrayValue(BYTE_SCL));
-      }
-
-      for (int i = 0; i < _getNumberOfChars(gType); i++) {
-        json.propertyString(WValue::ofPattern("s_%s", "ho").asString(), "t");// _getSubProperty(index, i)->asString());
-      }
-      
-      
-      json.endObject();*/
-      //json.separator();
     });
     json->endArray();
     delete json;    
@@ -132,7 +102,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     LOG->debug(F("Loaded %d items from EEPROM. (%d, first level: %d)"), _items->size(), _numberOfGPIOs->asByte(), index);
   }
 
-  WOutput* _loadGpio(WGpioType type) {
+  WGpio* _loadGpio(WGpioType type) {
     switch (type) {
       case GPIO_TYPE_LED : return new WLed();
       case GPIO_TYPE_RELAY: return new WRelay(NO_PIN);
@@ -148,6 +118,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   bool _loadThing(WList<WValue>* json, byte parent) {    
     byte result = false;
     WThing* thing = new WThing();
+    thing->parent = parent;
     /*//parent
     WValue* gParent = new WValue(parent);
     SETTINGS->add(gParent, nullptr);
@@ -201,10 +172,10 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
             WThing* p = _items->get(parent);
             if (p->gpio->type() == GPIO_TYPE_GROUP) {
               Serial.println(" is group");
-              ((WGroup*) p->gpio)->addItem((WOutput*) thing->gpio, nullptr);
+              ((WGroup*) p->gpio)->addItem((WGpio*) thing->gpio, nullptr);
             } else if (p->gpio->type() == GPIO_TYPE_MODE) {
               Serial.println("is mode");
-              ((WMode*) p->gpio)->addItem((WOutput*) thing->gpio, "tbi");
+              ((WMode*) p->gpio)->addItem((WGpio*) thing->gpio, "tbi");
             } else {
               Serial.println(" is mist");
             }
@@ -286,7 +257,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       //check outputs for creating properties etc.
       if (thing->gpio->isOutput()) {
         Serial.println("_configureDevice e");
-        WOutput* output = (WOutput*) thing->gpio;
+        WGpio* output = (WGpio*) thing->gpio;
         Serial.println("_configureDevice f");
         
         /*WThing* linkedThing = this->_items->getById(thing->id != nullptr ? thing->id->asString() : nullptr);

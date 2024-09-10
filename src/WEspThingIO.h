@@ -42,15 +42,15 @@ const static char HTTP_BUTTON_VALUE[] PROGMEM = R"=====(
   </div>
 )=====";
 
-class WMergedOutput : public WOutput {
+class WMergedOutput : public WGpio {
  public:
   WMergedOutput(WProperty* merged)
-      : WOutput(NO_PIN) {
+      : WGpio(NO_PIN) {
     _merged = merged;
   }
 
   void _updateOn() {
-    WOutput::_updateOn();
+    WGpio::_updateOn();
     _merged->asBool(this->isOn());
   };
 
@@ -703,7 +703,7 @@ class WEspThingIO : public WDevice {
  private:
   WThingGpios* _gpios;
 
-  void _configureOutput(WOutput* output, byte gConfigIndex, WValue* gConfig, bool gr, bool mq, bool wt) {
+  void _configureOutput(WGpio* output, byte gConfigIndex, WValue* gConfig, bool gr, bool mq, bool wt) {
     /*this->addOutput(output);
     char* gName = _gpios->getSubString(gConfigIndex, FIRST_NAME);
     char* gTitle = _gpios->getSubString(gConfigIndex, FIRST_TITLE);
@@ -751,7 +751,7 @@ class WEspThingIO : public WDevice {
     }*/
   }
 
-  void _configureOutputModes(WOutput* output, WValue* gConfig, bool mq, bool wt) {
+  void _configureOutputModes(WGpio* output, WValue* gConfig, bool mq, bool wt) {
     /*if (output->countModes() > 1) {
       // Mode property
       String mName = String(_gpios->getSubString(gConfig, FIRST_NAME));

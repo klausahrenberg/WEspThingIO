@@ -10,20 +10,43 @@
   {
     "type":"led",
     "gpio":0,
+    "inverted":false,
     "linkstate":true
   },
   {
     "type":"group",
     "id":"relay0",
     "title":"Relay",
-    "items":[      
+    "items":[
       {
         "type":"relay",
         "gpio":32,
         "inverted":true
-      }
+      },
+      {
+        "type":"relay",
+        "gpio":33,
+        "inverted":true
+      },
     ]
   },
+  {
+    "type":"mode",
+    "id":"mode0",
+    "title":"Auswahl",
+    "items":{
+      "Relay 25" : {
+        "type":"relay",
+        "gpio":25,
+        "inverted":true
+      },
+      "Relay 26" : {
+        "type":"relay",
+        "gpio":26,
+        "inverted":true
+      }
+    }
+  }
 ]
 
 
