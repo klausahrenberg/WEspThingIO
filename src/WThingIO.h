@@ -4,6 +4,9 @@
 #include "WDevice.h"
 #include "hw/WRelay.h"
 #include "hw/W2812.h"
+#include "hw/WSwitch.h"
+#include "hw/WHtu21D.h"
+#include "hw/WSht30.h"
 
 #define DEVICE_ID "switch"
 #define MAX_GPIOS 12
@@ -104,6 +107,10 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
 
   WGpio* _loadGpio(WGpioType type) {
     switch (type) {
+      case GPIO_TYPE_BUTTON : return new WSwitch(GPIO_TYPE_BUTTON);
+      case GPIO_TYPE_SWITCH : return new WSwitch(GPIO_TYPE_SWITCH);
+      case GPIO_TYPE_HTU21 : return new WHtu21D();
+      case GPIO_TYPE_SHT30 : return new WSht30();
       case GPIO_TYPE_LED : return new WLed();
       case GPIO_TYPE_RELAY: return new WRelay(NO_PIN);
       case GPIO_TYPE_RGB_LED: return new W2812Led(NO_PIN, 22);//gConfig->byteArrayValue(BYTE_NO_OF_LEDS));
@@ -227,7 +234,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     network()->setStatusLed(nullptr);
     _items->clear();
-    this->clearInAndOutputs();    
+    this->clearGpios();    
   }
 
   void _configureDevice() {
@@ -285,7 +292,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         onOffProp->visibilityMqtt(!group->id()->isStringEmpty());
         onOffProp->visibilityWebthing(!group->title()->isStringEmpty());
         //onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
-        group->on(onOffProp);
+        group->property(onOffProp);
         
         this->addProperty(onOffProp, group->id()->asString());        
 
@@ -295,6 +302,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
           //tbi SETTINGS->add(modeProp->value(), mName);
           modeProp->visibilityMqtt(!mode->modeId()->isStringEmpty());
           modeProp->visibilityWebthing(!mode->modeTitle()->isStringEmpty());
+          mode->modeProp(modeProp);
           //modeProp->addListener([this, modeProp]() { _notifyGroupedChange(modeProp, SECOND_NAME); });
           this->addProperty(modeProp, mode->modeId()->asString());
         }
