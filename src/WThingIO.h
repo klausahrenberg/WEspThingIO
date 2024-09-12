@@ -73,7 +73,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     for (int i = 0; i < list->size(); i++) {
       WValue* value = list->get(i);
       if (value->type() == LIST) { 
-        _numberOfGPIOs->asByte(_numberOfGPIOs->asByte() + _loadThing(value->asList(), NO_PARENT));
+        _numberOfGPIOs->asByte(_numberOfGPIOs->asByte() + _loadThing(value->asList(), nullptr, NO_PARENT));
       }
     }
     SETTINGS->save();
@@ -100,7 +100,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     //Read from EEPROM
     int index = 0;
     while (index < _numberOfGPIOs->asByte()) {
-      index = index + _loadThing(nullptr, NO_PARENT);
+      index = index + _loadThing(nullptr, nullptr, NO_PARENT);
     }
     LOG->debug(F("Loaded %d items from EEPROM. (%d, first level: %d)"), _items->size(), _numberOfGPIOs->asByte(), index);
   }
@@ -122,7 +122,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       }
   }
 
-  bool _loadThing(WList<WValue>* json, byte parent) {    
+  bool _loadThing(WList<WValue>* json, WValue* jsonId, byte parent) {    
     byte result = false;
     WThing* thing = new WThing();
     thing->parent = parent;
@@ -178,11 +178,11 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
           if ((parent != NO_PARENT) && (thing->gpio->isOutput())) {
             WThing* p = _items->get(parent);
             if (p->gpio->type() == GPIO_TYPE_GROUP) {
-              Serial.println(" is group");
+              Serial.println("parent is group");
               ((WGroup*) p->gpio)->addItem((WGpio*) thing->gpio, nullptr);
             } else if (p->gpio->type() == GPIO_TYPE_MODE) {
-              Serial.println("is mode");
-              ((WMode*) p->gpio)->addItem((WGpio*) thing->gpio, "tbi");
+              Serial.println("parent is mode");
+              ((WMode*) p->gpio)->addItem((WGpio*) thing->gpio, (jsonId != nullptr ? jsonId->asString() : nullptr));
             } else {
               Serial.println(" is mist");
             }
@@ -198,9 +198,16 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
                 //tbi
                 WValue* list = json->getById(WC_ITEMS);
                 if (list->type() == LIST) {                  
-                  list->asList()->forEach([this, childCount, pIndex] (int index, WValue* subThing, const char* id) {
+                  list->asList()->forEach([this, gType, childCount, pIndex] (int index, WValue* subThing, const char* id) {
                     if (subThing->type() == LIST) {
-                      if (_loadThing(subThing->asList(), pIndex)) {
+                      WValue* childId = nullptr;
+                      if (gType->asByte() == GPIO_TYPE_MODE) {
+                        //id                           
+                        childId = new WValue(STRING);
+                        SETTINGS->add(childId, nullptr);
+                        childId->asString(id);
+                      }
+                      if (_loadThing(subThing->asList(), childId, pIndex)) {
                         childCount->asByte(childCount->asByte() + 1);
                       }
                     }
@@ -210,9 +217,15 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
               LOG->debug(F("Json: Childs for parent index %d, has %d subitems"), pIndex, childCount->asByte());                 
             } else {
               //EEPROM read
-              LOG->debug(F("EEPRom: Childs for parent index %d, has %d subitems"), pIndex, childCount->asByte());                  
+              LOG->debug(F("EEPRom: Childs for parent index %d, has %d subitems"), pIndex, childCount->asByte());                                
               for (int i = 0; i < childCount->asByte(); i++) {
-                _loadThing(json, pIndex);
+                WValue* childId = nullptr;
+                if (gType->asByte() == GPIO_TYPE_MODE) {
+                  //id                           
+                  childId = new WValue(STRING);
+                  SETTINGS->add(childId, nullptr);
+                }
+                _loadThing(json, childId, pIndex);
               }  
             }
             LOG->debug(F("Loaded %d childs"), childCount->asByte());
