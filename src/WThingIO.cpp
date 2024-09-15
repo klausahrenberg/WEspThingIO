@@ -11,8 +11,8 @@ void setup() {
 	}
 	APPLICATION = "WEspThingIO";
 	VERSION = "1.50";
-	FLAG_SETTINGS = 0x48;
-	DEBUG = true;
+	FLAG_SETTINGS = 0x49;
+	DEBUG = false;
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
