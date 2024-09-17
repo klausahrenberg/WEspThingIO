@@ -9,10 +9,10 @@ void setup() {
   if (DEBUG) {
 		Serial.begin(9600);
 	}
-	APPLICATION = "WEspThingIO";
+	APPLICATION = "ThingIO";
 	VERSION = "1.50";
-	FLAG_SETTINGS = 0x49;
-	DEBUG = false;
+	FLAG_SETTINGS = 0x63;
+	DEBUG = true;
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device

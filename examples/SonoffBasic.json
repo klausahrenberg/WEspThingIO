@@ -1,0 +1,22 @@
+[
+  {
+    "type": "led",
+    "gpio": 13,
+    "inverted": false,
+    "linkstate": true
+  },
+  {
+    "id": "on",
+    "title": "Relay",
+    "items": [
+      {
+        "type": "button",
+        "gpio": 0
+      },
+      {
+        "type": "relay",
+        "gpio": 12
+      }
+    ]
+  }
+]

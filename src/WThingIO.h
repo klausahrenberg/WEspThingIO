@@ -7,6 +7,7 @@
 #include "hw/WRelay.h"
 #include "hw/WSht30.h"
 #include "hw/WSwitch.h"
+#include "hw/WPwmDimmer.h"
 
 #define DEVICE_ID "switch"
 #define MAX_GPIOS 12
@@ -121,6 +122,8 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       case GPIO_TYPE_RGB_WS2812:
       case GPIO_TYPE_RGB_PL9823:
         return new W2812Led(type);  // gConfig->byteArrayValue(BYTE_NO_OF_LEDS));
+      case GPIO_TYPE_PWM:
+        return new WPwmDimmer();  
       case GPIO_TYPE_MODE:
         return new WMode();
       case GPIO_TYPE_GROUP:
@@ -138,7 +141,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     // type
     WValue* gType = new WValue((byte)GPIO_TYPE_UNKNOWN);
     SETTINGS->add(gType, nullptr);
-    WGpioType type = (json == nullptr ? (WGpioType)gType->asByte() : _gpioTypeOf(json->getById(WC_TYPE)));
+    WGpioType type = (json == nullptr ? (WGpioType)gType->asByte() : (json->existsId(WC_TYPE) ? _gpioTypeOf(json->getById(WC_TYPE)) : GPIO_TYPE_GROUP));
     gType->asByte(type);
     LOG->debug(F("GPIO type is '%s'"), S_GPIO_TYPE[type]);
     WValue* childCount = nullptr;
@@ -152,7 +155,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         thing->gpio->registerSettings();
         if (json != nullptr) thing->gpio->fromJson(json);
         _items->add(thing);
-        if ((parent != NO_PARENT) && (thing->gpio->isOutput())) {
+        if ((parent != NO_PARENT) && ((thing->gpio->isOutput()) || (thing->gpio->isInput()))) {
           WThing* p = _items->get(parent);
           if (p->gpio->type() == GPIO_TYPE_GROUP) {
             ((WGroup*)p->gpio)->addItem((WGpio*)thing->gpio, nullptr);
@@ -281,6 +284,21 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
             rgb->setRgbModeByTitle(modeProp->asString());
             //SETTINGS->save();
           });
+          break;
+        }
+        case GPIO_TYPE_PWM: {
+          LOG->debug(F("Create brightness property"));
+          WPwmDimmer* pwm = (WPwmDimmer*)thing->gpio;
+          WProperty* brightness = WProps::createLevelIntProperty("Brightness", 0, 100);
+		      brightness->asInt(pwm->level());
+		      brightness->unit(UNIT_PERCENT);
+		      //network->getSettings()->add(this->brightness);
+		      //float v = this->brightness->getInteger();  
+          this->addProperty(brightness, "brightness");
+		      brightness->addListener([this, brightness, pwm]() {
+			      pwm->level(brightness->asInt());
+		      });
+          break;
         }
       }
       // check outputs for creating properties etc.
