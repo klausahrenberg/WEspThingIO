@@ -163,6 +163,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
             ((WMode*)p->gpio)->addItem((WGpio*)thing->gpio, (jsonId != nullptr ? jsonId->asString() : nullptr));
           }
         }
+        this->addGpio(thing->gpio);
         result = true;
         if (childCount != nullptr) {
           // look now for childrens
@@ -219,8 +220,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   void _resetDevice() {
     SETTINGS->removeAllAfter(TG_NUMBER_OF_GPIOS);
     network()->setStatusLed(nullptr);
-    _items->clear();
-    this->clearGpios();
   }
 
   void _configureDevice() {
