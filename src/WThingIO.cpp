@@ -11,8 +11,8 @@ void setup() {
 	}
 	APPLICATION = "ThingIO";
 	VERSION = "1.50";
-	FLAG_SETTINGS = 0x63;
-	DEBUG = false;
+	FLAG_SETTINGS = 0x64;
+	DEBUG = true;
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
