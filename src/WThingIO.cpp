@@ -6,13 +6,13 @@
 WNetwork *network;
 
 void setup() {
-  if (DEBUG) {
-		Serial.begin(9600);
-	}
 	APPLICATION = "ThingIO";
 	VERSION = "1.50";
 	FLAG_SETTINGS = 0x64;
 	DEBUG = true;
+  if (DEBUG) {
+		Serial.begin(9600);
+	}	
 	//Network
 	network = new WNetwork(NO_LED);
 	//Device
