@@ -2,6 +2,7 @@
 #define W_ESP_THING_IO_H
 
 #include "WDevice.h"
+#include "html/WebPage.h"
 #include "hw/W2812.h"
 #include "hw/WHtu21D.h"
 #include "hw/WRelay.h"
@@ -68,17 +69,17 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
 
   WValue* numberOfGPIOs() { return _numberOfGPIOs; }
 
-  virtual WFormResponse* loadFromJson(WList<WValue>* list) {
+  virtual WFormResponse loadFromJson(WList<WValue>* list) {
     _resetDevice();
     _numberOfGPIOs->asByte(0);
     for (int i = 0; i < list->size(); i++) {
       WValue* value = list->get(i);
-      if (value->type() == LIST) {
+      if (value->type() == WDataType::LIST) {
         _numberOfGPIOs->asByte(_numberOfGPIOs->asByte() + _loadThing(value->asList(), nullptr, NO_PARENT));
       }
     }
     SETTINGS->save();
-    return new WFormResponse(FO_RESTART);
+    return WFormResponse(FO_RESTART);
   }
 
  protected:
@@ -88,7 +89,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
   WGpioType _gpioTypeOf(WValue* jType) {
     if (jType != nullptr) {
       for (byte b = 0; b < GPIO_TYPE_COUNT; b++) {
-        if (jType->equalsString(S_GPIO_TYPE[b])) {
+        if (strcmp_P(jType->asString(), S_GPIO_TYPE[b]) == 0) {
           return (WGpioType)b;
         }
       }
@@ -146,7 +147,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     LOG->debug(F("GPIO type is '%s'"), S_GPIO_TYPE[type]);
     WValue* childCount = nullptr;
     if ((type == GPIO_TYPE_GROUP) || (type == GPIO_TYPE_MODE)) {
-      childCount = new WValue(BYTE);
+      childCount = new WValue(WDataType::BYTE);
       SETTINGS->add(childCount, nullptr);
     }
     if (type != GPIO_TYPE_UNKNOWN) {
@@ -163,7 +164,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
             ((WMode*)p->gpio)->addItem((WGpio*)thing->gpio, (jsonId != nullptr ? jsonId->asString() : nullptr));
           }
         }
-        this->addGpio(thing->gpio);
+        this->registerGpio(thing->gpio);
         result = true;
         if (childCount != nullptr) {
           // look now for childrens
@@ -174,13 +175,13 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
             if (json->existsId(WC_ITEMS)) {
               // tbi
               WValue* list = json->getById(WC_ITEMS);
-              if (list->type() == LIST) {
+              if (list->type() == WDataType::LIST) {
                 list->asList()->forEach([this, gType, childCount, pIndex](int index, WValue* subThing, const char* id) {
-                  if (subThing->type() == LIST) {
+                  if (subThing->type() == WDataType::LIST) {
                     WValue* childId = nullptr;
                     if (gType->asByte() == GPIO_TYPE_MODE) {
                       // id
-                      childId = new WValue(STRING);
+                      childId = new WValue(WDataType::STRING);
                       SETTINGS->add(childId, nullptr);
                       childId->asString(id);
                     }
@@ -200,7 +201,7 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
               WValue* childId = nullptr;
               if (gType->asByte() == GPIO_TYPE_MODE) {
                 // id
-                childId = new WValue(STRING);
+                childId = new WValue(WDataType::STRING);
                 SETTINGS->add(childId, nullptr);
               }
               _loadThing(json, childId, pIndex);
@@ -229,24 +230,21 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       if (thing->gpio->isGroupOrMode()) {
         WGroup* group = (WGroup*)thing->gpio;
         LOG->debug(F("Create on property '%s'"), group->id()->asString());
-        WProperty* onOffProp = WProps::createOnOffProperty(group->title()->asString());
+        WProperty* onOffProp = WProperty::onOff(this, group->id()->asString(), group->title()->asString());
         onOffProp->visibilityMqtt(!group->id()->isStringEmpty());
         onOffProp->visibilityWebthing(!group->title()->isStringEmpty());
         // onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
         group->property(onOffProp);
 
-        this->addProperty(onOffProp, group->id()->asString());
-
         if (thing->gpio->type() == GPIO_TYPE_MODE) {
           WMode* mode = (WMode*)thing->gpio;
           LOG->debug(F("Create mode property '%s'"), mode->modeId()->asString());
-          WProperty* modeProp = WProps::createStringProperty(mode->modeTitle()->asString());
+          WProperty* modeProp = WProperty::string(this, mode->modeId()->asString(), mode->modeTitle()->asString());
           // tbi SETTINGS->add(modeProp->value(), mName);
           modeProp->visibilityMqtt(!mode->modeId()->isStringEmpty());
           modeProp->visibilityWebthing(!mode->modeTitle()->isStringEmpty());
           mode->modeProp(modeProp);
           // modeProp->addListener([this, modeProp]() { _notifyGroupedChange(modeProp, SECOND_NAME); });
-          this->addProperty(modeProp, mode->modeId()->asString());
         }
       }
     });
@@ -265,9 +263,8 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         case GPIO_TYPE_RGB_PL9823: {
           LOG->debug(F("Create LED program property"));
           W2812Led* rgb = (W2812Led*)thing->gpio;
-          WProperty* modeProp = WProps::createStringProperty("RGB Mode");
+          WProperty* modeProp = WProperty::string(this, "rgb_mode", "RGB Mode");
           //SETTINGS->add(modeProp->value(), nullptr);
-          this->addProperty(modeProp, "rgb_mode");          
           // Enums
           for (byte i = 0; i < rgb->countModes(); i++) {
             modeProp->addEnumString(rgb->modeTitle(i));
@@ -288,12 +285,11 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         case GPIO_TYPE_PWM: {
           LOG->debug(F("Create brightness property"));
           WPwmDimmer* pwm = (WPwmDimmer*)thing->gpio;
-          WProperty* brightness = WProps::createLevelIntProperty("Brightness", 0, 100);
+          WProperty* brightness = WProperty::levelInt(this, "brightness", "Brightness", 0, 100);
 		      brightness->asInt(pwm->level());
 		      brightness->unit(UNIT_PERCENT);
 		      //network->getSettings()->add(this->brightness);
 		      //float v = this->brightness->getInteger();  
-          this->addProperty(brightness, "brightness");
 		      brightness->addListener([this, brightness, pwm]() {
 			      pwm->level(brightness->asInt());
 		      });
