@@ -1,0 +1,30 @@
+[
+  { "type": "led", "gpio": 13, "inverted": false, "linkstate": true },
+  {
+    "type": "group",
+    "id": "on",
+    "title": "On",
+    "items": [
+      { "type": "relay", "gpio": 4, "inverted": false },
+      { "type": "relay", "gpio": 15, "inverted": false },
+      { "type": "button", "gpio": 9, "inverted": true, "longPress": false }
+    ]
+  },
+  {
+    "type": "group",
+    "id": "led",
+    "title": "LED",
+    "items": [
+      { "type": "ws2812", "gpio": 0, "leds": 16 },
+      { "type": "button", "gpio": 10, "inverted": true, "longPress": false }
+    ]
+  },
+  {
+    "type": "group",
+    "id": "steam",
+    "title": "Steam",
+    "items": [
+      { "type": "relay", "gpio": 5, "inverted": false }
+    ]
+  }
+]

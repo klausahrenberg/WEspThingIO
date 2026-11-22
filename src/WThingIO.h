@@ -2,19 +2,22 @@
 #define W_ESP_THING_IO_H
 
 #include "WDevice.h"
+#include "WProps.h"
 #include "html/WebPage.h"
 #include "hw/W2812.h"
 #include "hw/WHtu21D.h"
 #include "hw/WRelay.h"
+#include "hw/WSerialDimmer.h"
 #include "hw/WSht30.h"
 #include "hw/WSwitch.h"
 #include "hw/WPwmDimmer.h"
+#include "html/WThingGpioEditor.h"
 
 #define DEVICE_ID "switch"
 #define MAX_GPIOS 12
 #define GPIO_DEFAULT_ID "^g.%d"
 #define GPIO_DEFAULT_ID_SUB GPIO_DEFAULT_ID ".%d"
-#define GPIO_TYPE_COUNT 9
+#define GPIO_TYPE_COUNT 21
 
 #define BIT_CONFIG_ID 0
 #define BIT_CONFIG_WEBTHING 1
@@ -82,6 +85,13 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
     return WFormResponse(FO_RESTART);
   }
 
+ virtual void bindWebServerCalls(AsyncWebServer* webServer) {
+    //the editor of the gpio page comes straight from the flash, without a copy in the heap
+    webServer->on("/gpio.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+      request->send_P(200, "application/javascript", WT_GPIO_EDITOR_JS);
+    });
+  }
+
  protected:
   WValue* _numberOfGPIOs = new WValue((byte)0);
   WList<WThing>* _items;
@@ -124,7 +134,9 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
       case GPIO_TYPE_RGB_PL9823:
         return new W2812Led(type);  // gConfig->byteArrayValue(BYTE_NO_OF_LEDS));
       case GPIO_TYPE_PWM:
-        return new WPwmDimmer();  
+        return new WPwmDimmer();
+      case GPIO_TYPE_SERIAL_DIMMER:
+        return new WSerialDimmer();
       case GPIO_TYPE_MODE:
         return new WMode();
       case GPIO_TYPE_GROUP:
@@ -156,11 +168,13 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         thing->gpio->registerSettings();
         if (json != nullptr) thing->gpio->fromJson(json);
         _items->add(thing);
+        //inputs are linked to the property of the group in _configureDevice. a
+        //group keeps them only to write them out again, it switches its outputs
         if ((parent != NO_PARENT) && ((thing->gpio->isOutput()) || (thing->gpio->isInput()))) {
           WThing* p = _items->get(parent);
           if (p->gpio->type() == GPIO_TYPE_GROUP) {
             ((WGroup*)p->gpio)->addItem((WGpio*)thing->gpio, nullptr);
-          } else if (p->gpio->type() == GPIO_TYPE_MODE) {
+          } else if ((p->gpio->type() == GPIO_TYPE_MODE) && (thing->gpio->isOutput())) {
             ((WMode*)p->gpio)->addItem((WGpio*)thing->gpio, (jsonId != nullptr ? jsonId->asString() : nullptr));
           }
         }
@@ -231,17 +245,21 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
         WGroup* group = (WGroup*)thing->gpio;
         LOG->debug(F("Create on property '%s'"), group->id()->asString());
         WProperty* onOffProp = WProperty::onOff(this, group->id()->asString(), group->title()->asString());
-        onOffProp->visibilityMqtt(!group->id()->isStringEmpty());
         onOffProp->visibilityWebthing(!group->title()->isStringEmpty());
         // onOffProp->addListener([this, onOffProp]() { _notifyGroupedChange(onOffProp, FIRST_NAME); });
         group->property(onOffProp);
+        //buttons and switches inside of the group toggle its property
+        _items->forEach([group, onOffProp, index](int i, WThing* child, const char* cid) {
+          if ((child->parent == index) && (child->gpio->isInput())) {
+            ((WGpio*)child->gpio)->property(onOffProp);
+          }
+        });
 
         if (thing->gpio->type() == GPIO_TYPE_MODE) {
           WMode* mode = (WMode*)thing->gpio;
           LOG->debug(F("Create mode property '%s'"), mode->modeId()->asString());
           WProperty* modeProp = WProperty::string(this, mode->modeId()->asString(), mode->modeTitle()->asString());
           // tbi SETTINGS->add(modeProp->value(), mName);
-          modeProp->visibilityMqtt(!mode->modeId()->isStringEmpty());
           modeProp->visibilityWebthing(!mode->modeTitle()->isStringEmpty());
           mode->modeProp(modeProp);
           // modeProp->addListener([this, modeProp]() { _notifyGroupedChange(modeProp, SECOND_NAME); });
@@ -259,27 +277,49 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
           }
           break;
         }
+        case GPIO_TYPE_HTU21:
+        case GPIO_TYPE_SHT30: {
+          WI2CTemperature* sensor = (WI2CTemperature*)thing->gpio;
+          const char* tId = (sensor->id()->isStringEmpty() ? "temperature" : sensor->id()->asString());
+          LOG->debug(F("Create temperature property '%s'"), tId);
+          WProperty* temperature = WProps::createTemperatureProperty(sensor->title()->asString());
+          temperature->visibilityWebthing(!sensor->title()->isStringEmpty());
+          this->registerProperty(temperature, tId);
+          sensor->property(temperature);
+          if ((!sensor->humidityId()->isStringEmpty()) || (!sensor->humidityTitle()->isStringEmpty())) {
+            const char* hId = (sensor->humidityId()->isStringEmpty() ? "humidity" : sensor->humidityId()->asString());
+            LOG->debug(F("Create humidity property '%s'"), hId);
+            WProperty* humidity = WProps::createHumidityProperty(sensor->humidityTitle()->asString());
+            humidity->visibilityWebthing(!sensor->humidityTitle()->isStringEmpty());
+            this->registerProperty(humidity, hId);
+            sensor->setHumidity(humidity);
+          }
+          break;
+        }
         case GPIO_TYPE_RGB_WS2812:
         case GPIO_TYPE_RGB_PL9823: {
-          LOG->debug(F("Create LED program property"));
+          //the brightness of the leds can be set. It starts at the maximum; the
+          //first strip owns the property, a second one keeps its own value
           W2812Led* rgb = (W2812Led*)thing->gpio;
-          WProperty* modeProp = WProperty::string(this, "rgb_mode", "RGB Mode");
-          //SETTINGS->add(modeProp->value(), nullptr);
-          // Enums
-          for (byte i = 0; i < rgb->countModes(); i++) {
-            modeProp->addEnumString(rgb->modeTitle(i));
+          if (this->getPropertyById("brightness") == nullptr) {
+            LOG->debug(F("Create brightness property for leds"));
+            rgb->brightness()->asInt(255);
+            rgb->brightness()->visibilityWebthing(true);
+            this->registerProperty(rgb->brightness(), "brightness");
           }
-          // Default/Initial value
-          if (!modeProp->isStringEmpty()) {
-            rgb->setRgbModeByTitle(modeProp->asString());
-          } else {
-            modeProp->asString(rgb->modeTitle(rgb->rgbMode()));
-          }                    
-          // Change notification
-          modeProp->addListener([this, modeProp, rgb]() {
-            rgb->setRgbModeByTitle(modeProp->asString());
-            //SETTINGS->save();
-          });
+          break;
+        }
+        case GPIO_TYPE_SERIAL_DIMMER: {
+          WSerialDimmer* dimmer = (WSerialDimmer*)thing->gpio;
+          if (dimmer->isDimmable()) {
+            const char* bId = (dimmer->id()->isStringEmpty() ? "brightness" : dimmer->id()->asString());
+            LOG->debug(F("Create brightness property '%s' for dimmer channel %d"), bId, dimmer->channel());
+            WProperty* brightness = WProperty::brightness(this, bId, dimmer->title()->asString());
+            brightness->unit(UNIT_PERCENT);
+            brightness->asInt(dimmer->level());
+            brightness->visibilityWebthing(!dimmer->title()->isStringEmpty());
+            brightness->addListener([brightness, dimmer]() { dimmer->level(brightness->asInt()); });
+          }
           break;
         }
         case GPIO_TYPE_PWM: {
@@ -305,7 +345,6 @@ class WThingIO : public WDevice, public IWIterable<WThing> {
           if ((wt) || (id)) {
             LOG->debug("add default property '%s'", thing->id->asString());
             WProperty* prop = WProps::createOnOffProperty(thing->id->asString());
-            prop->visibilityMqtt(id);
             prop->visibilityWebthing(wt);
             output->on(prop);
             this->addProperty(prop, thing->id->asString());

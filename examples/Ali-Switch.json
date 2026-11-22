@@ -1,0 +1,39 @@
+[
+ {
+  "type": "led", "gpio": 0, "inverted": false, "linkstate": true },
+ {
+  "type": "group",
+  "id": "on",
+  "title": "Channel 1",
+  "items": [
+   { "type": "relay", "gpio": 13, "inverted": false },
+   { "type": "led", "gpio": 14, "inverted": false, "linkstate": false },
+   { "type": "button", "gpio": 3, "inverted": true, "longPress": false }
+  ]
+ },
+ {
+  "type": "group",
+  "id": "switch_2",
+  "title": "Switch 2",
+  "items": [
+   { "type": "button", "gpio": 5, "inverted": true, "longPress": false }
+  ]
+ },
+ {
+  "type": "group",
+  "id": "led_2",
+  "title": "LED 2",
+  "items": [
+   { "type": "led", "gpio": 1, "inverted": false, "linkstate": false }
+  ]
+ },
+ {
+   "type": "sht30",
+   "sda": 4,
+   "scl": 12,
+   "id": "temperature",
+   "title": "Temperature",
+   "humidityId": "humidity",
+   "humidityTitle": "Humidity"
+ }
+]

@@ -1,0 +1,21 @@
+[
+  { "type": "led", "gpio": 2, "inverted": true, "linkstate": true },
+  {
+    "type": "group",
+    "id": "on",
+    "title": "Channel 1",
+    "items": [
+      { "type": "serialdimmer", "channel": 1, "id": "brightness", "title": "Brightness" },
+      { "type": "button", "gpio": 5, "inverted": true, "longPress": false }
+    ]
+  },
+  {
+    "type": "group",
+    "id": "on_2",
+    "title": "Channel 2",
+    "items": [
+      { "type": "serialdimmer", "channel": 2, "id": "brightness_2", "title": "Brightness 2" },
+      { "type": "button", "gpio": 4, "inverted": true, "longPress": false }
+    ]
+  }
+]

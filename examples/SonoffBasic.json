@@ -1,22 +1,26 @@
 [
-  {
-    "type": "led",
-    "gpio": 13,
-    "inverted": false,
-    "linkstate": true
-  },
-  {
-    "id": "on",
-    "title": "Relay",
-    "items": [
-      {
-        "type": "button",
-        "gpio": 0
-      },
-      {
-        "type": "relay",
-        "gpio": 12
-      }
-    ]
-  }
+ {
+  "type": "led",
+  "gpio": 13,
+  "inverted": false,
+  "linkstate": true
+ },
+ {
+  "type": "group",
+  "id": "on",
+  "title": "Relay",
+  "items": [
+   {
+    "type": "button",
+    "gpio": 0,
+    "inverted": true,
+    "longPress": false
+   },
+   {
+    "type": "relay",
+    "gpio": 12,
+    "inverted": false
+   }
+  ]
+ }
 ]
